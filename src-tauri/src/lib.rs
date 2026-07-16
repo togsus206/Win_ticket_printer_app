@@ -150,12 +150,9 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
                 ticket.target_device.clone()
             };
 
-            // winprint utiliza un Printer estructurado para enviar los bytes directamente
-            let mut printer = winprint::Printer::new(&nombre_impresora)
-                .map_err(|e| format!("No se pudo encontrar la impresora en Windows: {}", e))?;
-                
-            printer.write_all(&bytes)
-                .map_err(|e| format!("Error al enviar datos a la cola de Windows: {}", e))?;
+            // winprint::print envía el búfer de bytes directamente a la impresora seleccionada
+            winprint::print(&nombre_impresora, &bytes)
+                .map_err(|e| format!("Error en la cola de impresión de Windows: {}", e))?;
         }
 
         // --- CONEXIÓN USB COMPILADA PARA LINUX (Para tus pruebas en Ubuntu) ---
