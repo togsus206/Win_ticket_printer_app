@@ -317,6 +317,9 @@
         <button class="nav-btn active" id="tab-sales-btn" onclick="switchTab('sales')">
             <span>🛒</span>Ventas
         </button>
+        <button class="nav-btn" id="tab-history-btn" onclick="switchTab('history')">
+            <span>📜</span>Historial
+        </button>
         <button class="nav-btn" id="tab-settings-btn" onclick="switchTab('settings')">
             <span>⚙️</span>Ajustes
         </button>
@@ -368,6 +371,31 @@
                 <div class="card total-container">
                     <span>TOTAL GENERADO:</span>
                     <span id="total-amount">$0.00</span>
+                </div>
+            </div>
+
+            <!-- PANEL DEL HISTORIAL (Oculto por defecto) -->
+            <div id="panel-history" class="view-panel">
+                <div class="card" style="flex: 1; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid var(--bg-app); padding-bottom: 8px;">
+                        <h2 style="border: none; margin: 0; padding: 0;">Historial de Ventas</h2>
+                        <button class="btn-danger" onclick="clearHistory()" style="padding: 6px 12px; font-size: 0.85rem;">🗑️ Vaciar Historial</button>
+                    </div>
+                    <div class="table-container" style="flex: 1; overflow-y: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Fecha / Hora</th>
+                                    <th>Productos</th>
+                                    <th>Total</th>
+                                    <th class="actions-cell">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="history-table-body">
+                                <!-- Se inyecta dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
 
@@ -511,18 +539,21 @@
 
         // --- SISTEMA DE PESTAÑAS (NAVEGACIÓN) ---
         function switchTab(tabName) {
-            // Desactivar botones
             document.getElementById('tab-sales-btn').classList.remove('active');
+            document.getElementById('tab-history-btn').classList.remove('active');
             document.getElementById('tab-settings-btn').classList.remove('active');
             
-            // Ocultar paneles
             document.getElementById('panel-sales').classList.remove('active');
+            document.getElementById('panel-history').classList.remove('active');
             document.getElementById('panel-settings').classList.remove('active');
 
-            // Activar pestaña seleccionada
             if (tabName === 'sales') {
                 document.getElementById('tab-sales-btn').classList.add('active');
                 document.getElementById('panel-sales').classList.add('active');
+            } else if (tabName === 'history') {
+                document.getElementById('tab-history-btn').classList.add('active');
+                document.getElementById('panel-history').classList.add('active');
+                renderHistoryTable(); // Renderiza la tabla cada vez que entramos a verla
             } else {
                 document.getElementById('tab-settings-btn').classList.add('active');
                 document.getElementById('panel-settings').classList.add('active');
@@ -824,6 +855,10 @@
                     ticket: payload,
                     esTarjetaPresentacion: false
                 });
+                
+                //Guardamos en el historial solo si no hubo error en Rust
+                saveTicketToHistory(payload);
+
                 alert(result);
             } catch (error) {
                 console.error("Error al imprimir:", error);
@@ -843,6 +878,92 @@
             } catch (error) {
                 console.error("Error al imprimir tarjeta:", error);
                 alert(error);
+            }
+        }
+
+        // --- GESTIÓN DEL HISTORIAL DE TICKETS ---
+        
+        // Guarda de forma segura el ticket impreso en el localStorage
+        function saveTicketToHistory(payload) {
+            let history = JSON.parse(localStorage.getItem('ticket_history')) || [];
+            
+            // Le agregamos marca de tiempo local
+            const now = new Date();
+            payload.timestamp = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            payload.id = Date.now(); // ID único para identificar el ticket
+
+            history.unshift(payload); // Lo agregamos al inicio de la lista (más recientes primero)
+            localStorage.setItem('ticket_history', JSON.stringify(history));
+        }
+
+        // Dibuja la tabla con el historial
+        function renderHistoryTable() {
+            const historyTableBody = document.getElementById('history-table-body');
+            historyTableBody.innerHTML = '';
+            
+            const history = JSON.parse(localStorage.getItem('ticket_history')) || [];
+
+            if (history.length === 0) {
+                historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #64748b;">No hay tickets registrados en el historial.</td></tr>`;
+                return;
+            }
+
+            history.forEach(t => {
+                const tr = document.createElement('tr');
+                
+                // Resumen corto de productos
+                const prodSummary = t.products.map(p => `${p.qty}x ${p.name}`).join(', ');
+
+                tr.innerHTML = `
+                    <td><strong>${t.timestamp}</strong></td>
+                    <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${prodSummary}">
+                        ${prodSummary}
+                    </td>
+                    <td><strong>$${t.total.toFixed(2)}</strong></td>
+                    <td class="actions-cell">
+                        <button class="btn-primary" onclick="reprintTicket(${t.id})" style="padding: 4px 8px; font-size: 0.8rem; background-color: #0d9488;">🖨️ Reimprimir</button>
+                        <button class="btn-danger" onclick="deleteHistoryItem(${t.id})" style="padding: 4px 8px; font-size: 0.8rem;">❌ Borrar</button>
+                    </td>
+                `;
+                historyTableBody.appendChild(tr);
+            });
+        }
+
+        // Elimina un ticket individual del historial
+        window.deleteHistoryItem = function(id) {
+            let history = JSON.parse(localStorage.getItem('ticket_history')) || [];
+            history = history.filter(item => item.id !== id);
+            localStorage.setItem('ticket_history', JSON.stringify(history));
+            renderHistoryTable();
+        }
+
+        // Vacía todo el historial de una sola vez
+        window.clearHistory = function() {
+            if (confirm("¿Estás seguro de que quieres borrar todo el historial de ventas de Estado Play? Esta acción no se puede deshacer.")) {
+                localStorage.removeItem('ticket_history');
+                renderHistoryTable();
+            }
+        }
+
+        // Reimprime de forma directa un ticket pasado usando Rust
+        window.reprintTicket = async function(id) {
+            const history = JSON.parse(localStorage.getItem('ticket_history')) || [];
+            const ticketToPrint = history.find(item => item.id === id);
+
+            if (!ticketToPrint) {
+                alert("No se encontró el ticket seleccionado.");
+                return;
+            }
+
+            try {
+                // Mandamos a imprimir idéntico al momento que se creó
+                const result = await window.__TAURI__.core.invoke('imprimir_ticket', {
+                    ticket: ticketToPrint,
+                    esTarjetaPresentacion: false
+                });
+                alert("Reimpresión: " + result);
+            } catch (error) {
+                alert("Error al reimprimir: " + error);
             }
         }
 
