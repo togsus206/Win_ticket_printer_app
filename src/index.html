@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TicketPrinterApp - Windows</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --danger: #ef4444;
+            --danger-hover: #dc2626;
+            --bg-app: #f1f5f9;
+            --bg-card: #ffffff;
+            --text-main: #0f172a;
+            --border: #e2e8f0;
+            --sidebar-width: 70px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-app);
+            color: var(--text-main);
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- BARRA LATERAL DE NAVEGACIÓN --- */
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: #1e293b;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px 0;
+            gap: 20px;
+            border-right: 1px solid #0f172a;
+        }
+
+        .nav-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            background: transparent;
+            color: #94a3b8;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+
+        .nav-btn span {
+            font-size: 1.3rem;
+            margin-bottom: 2px;
+        }
+
+        .nav-btn:hover, .nav-btn.active {
+            color: #ffffff;
+            background-color: #334155;
+        }
+
+        .nav-btn.active {
+            border-left: 3px solid var(--primary);
+            border-radius: 0 8px 8px 0;
+        }
+
+        /* Contenedor Principal dividido en dos columnas */
+        .app-container {
+            display: flex;
+            flex: 1;
+            height: 100%;
+        }
+
+        /* Columna Izquierda: Contenedor de Vistas Intercambiables */
+        .left-panel {
+            flex: 1;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+        }
+
+        /* Gestión de vistas */
+        .view-panel {
+            display: none;
+            flex-direction: column;
+            gap: 20px;
+            height: 100%;
+        }
+
+        .view-panel.active {
+            display: flex;
+        }
+
+        /* Columna Derecha: Previsualización */
+        .right-panel {
+            width: 400px;
+            background-color: #cbd5e1;
+            border-left: 2px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 24px;
+            overflow-y: auto;
+        }
+
+        /* Tarjetas de diseño */
+        .card {
+            background-color: var(--bg-card);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            margin-bottom: 16px;
+            font-size: 1.2rem;
+            color: #334155;
+            border-bottom: 2px solid var(--bg-app);
+            padding-bottom: 8px;
+        }
+
+        /* Formulario de Entrada */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .form-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #64748b;
+        }
+
+        input {
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+            padding: 6px 10px;
+            font-size: 0.85rem;
+        }
+
+        .btn-danger:hover {
+            background-color: var(--danger-hover);
+        }
+
+        /* Tabla de Productos */
+        .table-container {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 250px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            background-color: #f8fafc;
+            color: #64748b;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .actions-cell {
+            text-align: right;
+        }
+
+        /* Total en el Panel Izquierdo */
+        .total-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.3rem;
+            font-weight: bold;
+            padding-top: 16px;
+            border-top: 2px solid var(--border);
+        }
+
+        /* --- Estilos del Simulador de Ticket --- */
+        .ticket-simulator {
+            background-color: white;
+            width: 290px;
+            padding: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            border-radius: 2px;
+            font-family: 'Courier New', Courier, monospace;
+            color: #000;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            min-height: 550px; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        .ticket-header {
+            text-align: center;
+            margin-bottom: 12px;
+            font-weight: bold;
+            white-space: pre-line;
+        }
+
+        .ticket-date {
+            text-align: center;
+            font-size: 0.75rem;
+            margin-bottom: 12px;
+            border-bottom: 1px dashed #000;
+            padding-bottom: 8px;
+        }
+
+        .ticket-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+
+        .ticket-total-section {
+            border-top: 1px dashed #000;
+            margin-top: 12px;
+            padding-top: 8px;
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .ticket-footer {
+            text-align: center;
+            margin-top: auto; 
+            padding-top: 20px;
+            font-size: 0.75rem;
+            white-space: pre-line;
+        }
+
+        .ticket-qr {
+            display: flex;
+            justify-content: center;
+            margin-top: 12px;
+        }
+
+        .ticket-qr canvas, .ticket-qr img {
+            width: 120px !important;
+            height: 120px !important;
+        }
+
+        .actions-panel {
+            margin-top: 20px;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+</head>
+<body>
+
+    <div class="sidebar">
+        <button class="nav-btn active" id="tab-sales-btn" onclick="switchTab('sales')">
+            <span>🛒</span>Ventas
+        </button>
+        <button class="nav-btn" id="tab-settings-btn" onclick="switchTab('settings')">
+            <span>⚙️</span>Ajustes
+        </button>
+    </div>
+
+    <div class="app-container">
+        
+        <div class="left-panel">
+            
+            <div id="panel-sales" class="view-panel active">
+                <div class="card">
+                    <h2>Cargar Producto</h2>
+                    <form id="product-form" onsubmit="event.preventDefault();">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label for="prod-name">Descripción</label>
+                                <input type="text" id="prod-name" placeholder="Ej: Cable HDMI" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="prod-qty">Cant.</label>
+                                <input type="number" id="prod-qty" placeholder="1" min="1" value="1" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="prod-price">Precio</label>
+                                <input type="number" id="prod-price" placeholder="0.00" step="0.01" required>
+                            </div>
+                            <button type="submit" class="btn-primary" id="btn-add">Agregar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card table-container">
+                    <h2>Lista de Productos</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Cant.</th>
+                                <th>Precio Unit.</th>
+                                <th>Subtotal</th>
+                                <th class="actions-cell">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="products-table-body">
+                            </tbody>
+                    </table>
+                </div>
+
+                <div class="card total-container">
+                    <span>TOTAL GENERADO:</span>
+                    <span id="total-amount">$0.00</span>
+                </div>
+            </div>
+
+            <div id="panel-settings" class="view-panel">
+                <div class="card">
+                    <h2>Ajustes del Ticket</h2>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                        <div class="form-group">
+                            <label for="cfg-header">Encabezado</label>
+                            <input type="text" id="cfg-header" value="Estado Play">
+                        </div>
+                        <div class="form-group">
+                            <label for="cfg-footer">Pie de Página</label>
+                            <input type="text" id="cfg-footer" value="¡Gracias por tu compra!">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 12px;">
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer;">
+                            <input type="checkbox" id="cfg-show-date" checked> Mostrar Fecha y Hora
+                        </label>
+                        
+                        <label style="font-size: 0.9rem; font-weight: 600; color: #64748b;">Papel:</label>
+                        <label style="display: flex; align-items: center; gap: 4px; font-size: 0.9rem; cursor: pointer;">
+                            <input type="radio" name="paper-size" value="58" checked> 58mm
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 4px; font-size: 0.9rem; cursor: pointer;">
+                            <input type="radio" name="paper-size" value="80"> 80mm
+                        </label>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                        <div class="form-group">
+                            <label>Subir QR Personalizado</label>
+                            <input type="file" id="cfg-qr-file" accept="image/*" style="font-size: 0.8rem;">
+                            <button class="btn-danger" id="btn-delete-qr" style="margin-top: 6px; padding: 4px 8px; font-size: 0.75rem; display: none;">Eliminar QR</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Conexión de Impresora</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                    <div class="form-group">
+                        <label for="cfg-conn-type">Tipo de Conexión</label>
+                        <select id="cfg-conn-type" onchange="toggleConnectionInputs()" style="padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                            <option value="usb">USB (Windows/Linux)</option>
+                            <option value="bluetooth">Bluetooth (Puerto COM)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="group-usb">
+                        <label for="cfg-usb-printer">Seleccionar Impresora USB</label>
+                        <div style="display: flex; gap: 8px;">
+                            <select id="cfg-usb-printer" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                                <option value="">Ninguna seleccionada</option>
+                            </select>
+                            <button class="btn-primary" onclick="scanPrinters()" style="padding: 10px;">🔄</button>
+                        </div>
+                    </div>
+                    <div class="form-group" id="group-bt" style="display: none;">
+                        <label for="cfg-bt-port">Puerto COM / Bluetooth</label>
+                        <select id="cfg-bt-port" style="padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                            <option value="">Selecciona puerto COM / Bluetooth</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="right-panel">
+            <h3 style="margin-bottom: 12px; color: #475569;">Vista Previa</h3>
+            
+            <div class="ticket-simulator" id="ticket-view">
+                <div class="ticket-header" id="t-header">Estado Play<br>Córdoba Capital</div>
+                <div class="ticket-date" id="t-date">Fecha: --/--/---- --:--</div>
+                
+                <div id="t-items">
+                    </div>
+                
+                <div class="ticket-total-section">
+                    <span>TOTAL:</span>
+                    <span id="t-total">$0.00</span>
+                </div>
+                
+                <div class="ticket-footer" id="t-footer">¡Gracias por tu compra!</div>
+                
+                <div class="ticket-qr">
+                    <div id="t-qr-placeholder"></div>
+                </div>
+            </div>
+
+            <div class="actions-panel">
+                <button class="btn-primary" style="width: 100%; font-size: 1rem; padding: 12px; margin-bottom: 4px;" onclick="printTicket()">
+                    🖨️ Imprimir Ticket
+                </button>
+                <button class="btn-primary" style="width: 100%; font-size: 1rem; padding: 12px; background-color: #0d9488;" onclick="printCard()">
+                    📇 Imprimir Tarjeta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const products = [];
+        
+        // Elementos del DOM de Ventas
+        const productForm = document.getElementById('product-form');
+        const prodNameInput = document.getElementById('prod-name');
+        const prodQtyInput = document.getElementById('prod-qty');
+        const prodPriceInput = document.getElementById('prod-price');
+        const tableBody = document.getElementById('products-table-body');
+        const totalAmountText = document.getElementById('total-amount');
+        
+        // Elementos del Ticket
+        const ticketItemsContainer = document.getElementById('t-items');
+        const ticketTotalText = document.getElementById('t-total');
+        const ticketDateText = document.getElementById('t-date');
+
+        // Referencias para Ajustes
+        const cfgHeader = document.getElementById('cfg-header');
+        const cfgFooter = document.getElementById('cfg-footer');
+        const cfgShowDate = document.getElementById('cfg-show-date');
+        const cfgQrFile = document.getElementById('cfg-qr-file');
+        const btnDeleteQr = document.getElementById('btn-delete-qr');
+        const paperRadios = document.getElementsByName('paper-size');
+
+        const tHeader = document.getElementById('t-header');
+        const tFooter = document.getElementById('t-footer');
+        const tDate = document.getElementById('t-date');
+        const ticketView = document.getElementById('ticket-view');
+        const tQrPlaceholder = document.getElementById('t-qr-placeholder');
+
+        let customQrBase64 = null;
+
+        // --- PERSISTENCIA Y AJUSTES DE CONEXIÓN ---
+        const cfgConnType = document.getElementById('cfg-conn-type');
+        const groupUsb = document.getElementById('group-usb');
+        const groupBt = document.getElementById('group-bt');
+        const cfgUsbPrinter = document.getElementById('cfg-usb-printer');
+        const cfgBtPort = document.getElementById('cfg-bt-port'); // Mantenemos el ID por compatibilidad, pero ahora será un select
+
+        // --- SISTEMA DE PESTAÑAS (NAVEGACIÓN) ---
+        function switchTab(tabName) {
+            // Desactivar botones
+            document.getElementById('tab-sales-btn').classList.remove('active');
+            document.getElementById('tab-settings-btn').classList.remove('active');
+            
+            // Ocultar paneles
+            document.getElementById('panel-sales').classList.remove('active');
+            document.getElementById('panel-settings').classList.remove('active');
+
+            // Activar pestaña seleccionada
+            if (tabName === 'sales') {
+                document.getElementById('tab-sales-btn').classList.add('active');
+                document.getElementById('panel-sales').classList.add('active');
+            } else {
+                document.getElementById('tab-settings-btn').classList.add('active');
+                document.getElementById('panel-settings').classList.add('active');
+            }
+        }
+
+        // Actualizar la fecha del ticket en tiempo real
+        function updateTicketDate() {
+            const now = new Date();
+            const formattedDate = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            ticketDateText.textContent = `Fecha: ${formattedDate}`;
+        }
+        updateTicketDate();
+
+        // Agregar producto
+        productForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const name = prodNameInput.value.trim();
+            const qty = parseInt(prodQtyInput.value);
+            const price = parseFloat(prodPriceInput.value);
+
+            if (!name || isNaN(qty) || qty <= 0 || isNaN(price) || price === 0) {
+                alert('Por favor, completa todos los campos con valores válidos (el precio no puede ser cero).');
+                return;
+            }
+
+            products.push({ name, qty, price });
+            
+            prodNameInput.value = '';
+            prodQtyInput.value = '1';
+            prodPriceInput.value = '';
+            prodNameInput.focus();
+
+            updateUI();
+        });
+
+        // Actualizar UI
+        function updateUI() {
+            tableBody.innerHTML = '';
+            ticketItemsContainer.innerHTML = '';
+            
+            let total = 0;
+
+            const formatCurrency = (val) => {
+                return val < 0 ? `-$${Math.abs(val).toFixed(2)}` : `$${val.toFixed(2)}`;
+            };
+
+            products.forEach((prod, index) => {
+                const subtotal = prod.qty * prod.price;
+                total += subtotal;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${prod.name}</td>
+                    <td>${prod.qty}</td>
+                    <td>${formatCurrency(prod.price)}</td>
+                    <td>${formatCurrency(subtotal)}</td>
+                    <td class="actions-cell">
+                        <button class="btn-danger" onclick="deleteProduct(${index})">Eliminar</button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+
+                const ticketItem = document.createElement('div');
+                ticketItem.className = 'ticket-item';
+                ticketItem.innerHTML = `
+                    <span>${prod.qty}x ${prod.name}</span>
+                    <span>${formatCurrency(subtotal)}</span>
+                `;
+                ticketItemsContainer.appendChild(ticketItem);
+            });
+
+            const formattedTotal = total < 0 ? `-$${Math.abs(total).toFixed(2)}` : `$${total.toFixed(2)}`;
+            totalAmountText.textContent = formattedTotal;
+            ticketTotalText.textContent = formattedTotal;
+            
+            updateTicketDate();
+            updateQR();
+        }
+
+        // Eliminar Producto
+        window.deleteProduct = function(index) {
+            products.splice(index, 1);
+            updateUI();
+        }
+
+        // --- PERSISTENCIA LOCAL (SharedPreferences) ---
+        function loadSettings() {
+            cfgHeader.value = localStorage.getItem('header') || 'Estado Play\nCórdoba Capital';
+            cfgFooter.value = localStorage.getItem('footer') || '¡Gracias por tu compra!';
+            cfgShowDate.checked = localStorage.getItem('showDate') !== 'false';
+            
+            const savedPaper = localStorage.getItem('paperSize') || '58';
+            paperRadios.forEach(radio => {
+                if (radio.value === savedPaper) radio.checked = true;
+            });
+
+            customQrBase64 = localStorage.getItem('customQr') || null;
+            if (customQrBase64) {
+                btnDeleteQr.style.display = 'block';
+            }
+
+            applySettings();
+        }
+
+        function applySettings() {
+            tHeader.innerText = cfgHeader.value;
+            tFooter.innerText = cfgFooter.value;
+            tDate.style.display = cfgShowDate.checked ? 'block' : 'none';
+            
+            const is80mm = document.querySelector('input[name="paper-size"]:checked').value === '80';
+            ticketView.style.width = is80mm ? '380px' : '290px';
+
+            saveSettingsToLocalStorage();
+            updateQR();
+        }
+
+        function saveSettingsToLocalStorage() {
+            localStorage.setItem('header', cfgHeader.value);
+            localStorage.setItem('footer', cfgFooter.value);
+            localStorage.setItem('showDate', cfgShowDate.checked);
+            localStorage.setItem('paperSize', document.querySelector('input[name="paper-size"]:checked').value);
+            if (customQrBase64) {
+                localStorage.setItem('customQr', customQrBase64);
+            } else {
+                localStorage.removeItem('customQr');
+            }
+        }
+
+        // Generación del QR Dinámico
+        function updateQR() {
+            tQrPlaceholder.innerHTML = '';
+            
+            if (customQrBase64) {
+                const img = document.createElement('img');
+                img.src = customQrBase64;
+                img.style.width = '120px';
+                img.style.height = '120px';
+                tQrPlaceholder.appendChild(img);
+            } else {
+                const totalText = ticketTotalText.textContent || "$0.00";
+                const qrContent = `Total: ${totalText}`;
+                
+                const canvas = document.createElement('canvas');
+                tQrPlaceholder.appendChild(canvas);
+                
+                QRCode.toCanvas(canvas, qrContent, { width: 120, margin: 1 }, function (error) {
+                    if (error) console.error(error);
+                });
+            }
+        }
+
+        // Event Listeners para Ajustes
+        cfgHeader.addEventListener('input', applySettings);
+        cfgFooter.addEventListener('input', applySettings);
+        cfgShowDate.addEventListener('change', applySettings);
+        paperRadios.forEach(radio => radio.addEventListener('change', applySettings));
+
+        cfgQrFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    customQrBase64 = event.target.result;
+                    btnDeleteQr.style.display = 'block';
+                    applySettings();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        btnDeleteQr.addEventListener('click', () => {
+            customQrBase64 = null;
+            cfgQrFile.value = '';
+            btnDeleteQr.style.display = 'none';
+            applySettings();
+        });
+
+        function toggleConnectionInputs() {
+            if (cfgConnType.value === 'usb') {
+                groupUsb.style.display = 'block';
+                groupBt.style.display = 'none';
+            } else {
+                groupUsb.style.display = 'none';
+                groupBt.style.display = 'block';
+            }
+            saveConnectionSettings();
+        }
+
+        function saveConnectionSettings() {
+            localStorage.setItem('connType', cfgConnType.value);
+            localStorage.setItem('usbPrinter', cfgUsbPrinter.value);
+            localStorage.setItem('btPort', cfgBtPort.value);
+        }
+
+        // Cargar la configuración al arrancar la app
+        function loadConnectionSettings() {
+            cfgConnType.value = localStorage.getItem('connType') || 'usb';
+            cfgBtPort.value = localStorage.getItem('btPort') || '';
+            cfgUsbPrinter.value = localStorage.getItem('usbPrinter') || '';
+            
+            toggleConnectionInputs();
+            
+            // Escuchar cambios para guardarlos al instante (como SharedPreferences)
+            cfgConnType.addEventListener('change', toggleConnectionInputs);
+            cfgUsbPrinter.addEventListener('change', saveConnectionSettings);
+            cfgBtPort.addEventListener('change', saveConnectionSettings);
+        }
+
+        // Llamar a loadConnectionSettings() justo después de loadSettings() al final del script:
+        loadConnectionSettings();
+
+
+        // --- ESCANEO INTELIGENTE DE IMPRESORAS / PUERTOS COM ---
+        async function scanPrinters() {
+            try {
+                // Llamamos al comando inteligente de Rust
+                const puertos = await window.__TAURI__.core.invoke('escanear_puertos');
+                
+                // Limpiamos los selectores
+                cfgUsbPrinter.innerHTML = '<option value="">Autodetectar USB (Recomendado)</option>';
+                cfgBtPort.innerHTML = '<option value="">Selecciona puerto COM / Bluetooth</option>';
+
+                let puertoAutoseleccionado = null;
+
+                if (puertos.length === 0) {
+                    alert("No se detectaron puertos activos en el sistema. Asegúrate de encender y emparejar tu impresora.");
+                    return;
+                }
+
+                puertos.forEach(p => {
+                    const option = document.createElement('option');
+                    option.value = p.port_name;
+                    option.textContent = `${p.port_name} (${p.port_type})`;
+                    
+                    // Si el backend identifica que tiene nombre de ticketera, lo marcamos
+                    if (p.es_probable_impresora) {
+                        option.selected = true;
+                        puertoAutoseleccionado = p.port_name;
+                    }
+
+                    // Agregamos el puerto a ambas listas para dar máxima flexibilidad
+                    cfgUsbPrinter.appendChild(option.cloneNode(true));
+                    cfgBtPort.appendChild(option);
+                });
+
+                // Autoguardado si detectamos la ticketera al toque
+                if (puertoAutoseleccionado) {
+                    if (cfgConnType.value === 'usb') {
+                        cfgUsbPrinter.value = puertoAutoseleccionado;
+                    } else {
+                        cfgBtPort.value = puertoAutoseleccionado;
+                    }
+                    saveConnectionSettings();
+                    alert(`¡Escaneo exitoso! Se autoseleccionó tu ticketera en: ${puertoAutoseleccionado}`);
+                } else {
+                    alert("Escaneo completo. Selecciona el puerto correspondiente a tu impresora de la lista.");
+                }
+
+            } catch (error) {
+                console.error("Error al escanear:", error);
+                alert("No se pudo escanear los puertos del sistema.");
+            }
+        }
+
+
+        // --- RECOLECTAR PAYLOAD DE IMPRESIÓN ---
+        function getTicketDataPayload() {
+            const paperSize = document.querySelector('input[name="paper-size"]:checked').value;
+            const connType = cfgConnType.value;
+            
+            // Si es USB usa el selector USB; si es Bluetooth usa el selector COM
+            const targetDevice = connType === 'usb' ? cfgUsbPrinter.value : cfgBtPort.value;
+
+            return {
+                header: cfgHeader.value,
+                footer: cfgFooter.value,
+                show_date: cfgShowDate.checked,
+                paper_size: paperSize,
+                connection_type: connType,
+                target_device: targetDevice,
+                products: products,
+                total: products.reduce((acc, p) => acc + (p.qty * p.price), 0)
+            };
+        }
+
+        // --- MANDAR A IMPRIMIR REAL ---
+        async function printTicket() {
+            const payload = getTicketDataPayload();
+            
+            if (payload.products.length === 0) {
+                alert("Carga al menos un producto antes de imprimir.");
+                return;
+            }
+
+            try {
+                const result = await window.__TAURI__.core.invoke('imprimir_ticket', {
+                    ticket: payload,
+                    esTarjetaPresentacion: false
+                });
+                alert(result);
+            } catch (error) {
+                console.error("Error al imprimir:", error);
+                alert(error);
+            }
+        }
+
+        async function printCard() {
+            const payload = getTicketDataPayload();
+
+            try {
+                const result = await window.__TAURI__.core.invoke('imprimir_ticket', {
+                    ticket: payload,
+                    esTarjetaPresentacion: true
+                });
+                alert(result);
+            } catch (error) {
+                console.error("Error al imprimir tarjeta:", error);
+                alert(error);
+            }
+        }
+
+        // Inicializar la carga de configuraciones al abrir
+        loadSettings();
+        loadConnectionSettings();
+    </script>
+</body>
+</html>
