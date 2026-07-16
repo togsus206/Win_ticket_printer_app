@@ -144,17 +144,18 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
         // --- CONEXIÓN USB COMPILADA PARA WINDOWS ---
         #[cfg(target_os = "windows")]
         {
-            // En Windows abrimos el Spooler de impresión nativo usando la API de Windows.
-            // Si el usuario no seleccionó una impresora específica, usamos una por defecto genérica.
             let nombre_impresora = if ticket.target_device.is_empty() {
-                "POS-58".to_string() // Nombre estándar común en Windows
+                "POS-58".to_string()
             } else {
                 ticket.target_device.clone()
             };
 
-            // Intentamos enviar el trabajo directo a la cola de Windows
-            winprint::print_raw(&nombre_impresora, &bytes, "Ticket de Venta Estado Play")
-                .map_err(|e| format!("Error en la cola de impresión de Windows: {}", e))?;
+            // winprint utiliza un Printer estructurado para enviar los bytes directamente
+            let mut printer = winprint::Printer::new(&nombre_impresora)
+                .map_err(|e| format!("No se pudo encontrar la impresora en Windows: {}", e))?;
+                
+            printer.write_all(&bytes)
+                .map_err(|e| format!("Error al enviar datos a la cola de Windows: {}", e))?;
         }
 
         // --- CONEXIÓN USB COMPILADA PARA LINUX (Para tus pruebas en Ubuntu) ---
