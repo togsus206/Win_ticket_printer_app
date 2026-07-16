@@ -26,5 +26,5 @@ serialport = "4.3.0" # Para manejar la conexión serie (Bluetooth / COM)
 chrono = "0.4"
 # Dependencia exclusiva que se activará solo cuando compiles el ejecutable para Windows (.exe)
 [target.'cfg(target_os = "windows")'.dependencies]
-winprint = "0.1.0"
+raw-print = "0.1.0"
 

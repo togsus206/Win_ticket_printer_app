@@ -150,8 +150,8 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
                 ticket.target_device.clone()
             };
 
-            // winprint::print envía el búfer de bytes directamente a la impresora seleccionada
-            winprint::print(&nombre_impresora, &bytes)
+            // raw_print::print_bytes envía el búfer directamente a la cola de Windows de forma segura
+            raw_print::print_bytes(&nombre_impresora, &bytes)
                 .map_err(|e| format!("Error en la cola de impresión de Windows: {}", e))?;
         }
 
