@@ -1,0 +1,48 @@
+name: "Compilar Instalador de Windows"
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  publish:
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: "windows-latest"
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Descargar Código del Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Instalar Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache de Dependencias de Rust
+        uses: swatinem/rust-cache@v2
+        with:
+          work-dir: "./src-tauri"
+
+      - name: Instalar Dependencias del Frontend
+        run: npm install
+
+      - name: Compilar Aplicación y Generar .EXE (Tauri Action)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "TicketPrinterApp v__VERSION__"
+          releaseBody: "Instalador oficial de TicketPrinterApp generado automáticamente para Estado Play."
+          releaseDraft: true
+          prerelease: false
