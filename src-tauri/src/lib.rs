@@ -127,27 +127,27 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
         port.write_all(&bytes)
             .map_err(|e| format!("Error al escribir en la impresora: {}", e))?;
     } else {
-        // IMPRESIÓN NATIVA ESTÁNDAR (Sin librerías raras)
+        // IMPRESIÓN NATIVA ESTÁNDAR
         #[cfg(target_os = "windows")]
         {
-            // En Windows, si usamos el nombre (ej. POS-58), escribimos directo al recurso local de impresión
-            let path = format!("\\\\localhost\\{}", target);
+            // 1. Obtenemos el nombre real de tu PC en la red
+            let pc_name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "127.0.0.1".to_string());
+            
+            // 2. Armamos 3 rutas posibles de ataque
+            let path_pc = format!("\\\\{}\\{}", pc_name, target);
+            let path_ip = format!("\\\\127.0.0.1\\{}", target);
+            let path_lh = format!("\\\\localhost\\{}", target);
+
+            // 3. Intentamos abrir la impresora probando una por una
             let mut file = std::fs::OpenOptions::new()
                 .write(true)
-                .open(&path)
-                .map_err(|_| format!("Para imprimir por USB en Windows, asegurate de compartir la impresora desde el panel de control con el nombre: {}", target))?;
+                .open(&path_pc)
+                .or_else(|_| std::fs::OpenOptions::new().write(true).open(&path_ip))
+                .or_else(|_| std::fs::OpenOptions::new().write(true).open(&path_lh))
+                .map_err(|e| format!("Windows bloqueó el acceso. Código de error exacto: {}", e))?;
             
             std::io::Write::write_all(&mut file, &bytes)
                 .map_err(|e| format!("Error al enviar el ticket a Windows: {}", e))?;
-        }
-
-        #[cfg(target_os = "linux")]
-        {
-            let path = if target == "POS-58" { "/dev/usb/lp0".to_string() } else { target.clone() };
-            let mut file = std::fs::File::create(&path)
-                .map_err(|_| "Error al acceder a la impresora en Linux.".to_string())?;
-            std::io::Write::write_all(&mut file, &bytes)
-                .map_err(|e| format!("Error de escritura USB: {}", e))?;
         }
     }
 

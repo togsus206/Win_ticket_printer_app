@@ -255,7 +255,7 @@
             text-align: center;
             margin-bottom: 12px;
             font-weight: bold;
-            white-space: pre-line;
+            white-space: pre-wrap;
         }
 
         .ticket-date {
@@ -287,7 +287,7 @@
             margin-top: auto; 
             padding-top: 20px;
             font-size: 0.75rem;
-            white-space: pre-line;
+            white-space: pre-wrap;
         }
 
         .ticket-qr {
@@ -310,6 +310,7 @@
         }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
 
@@ -404,12 +405,13 @@
                     <h2>Ajustes del Ticket</h2>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                         <div class="form-group">
-                            <label for="cfg-header">Encabezado</label>
-                            <input type="text" id="cfg-header" value="Estado Play">
+                            <label>Encabezado del Ticket</label>
+                            <textarea id="cfg-header" rows="6" style="width: 100%; resize: vertical; font-family: inherit; padding: 8px;" placeholder="ESTADO PLAY&#10;de Matías Valle&#10;Rivera Indarte 406 Local 4..."></textarea>
                         </div>
+
                         <div class="form-group">
-                            <label for="cfg-footer">Pie de Página</label>
-                            <input type="text" id="cfg-footer" value="¡Gracias por tu compra!">
+                            <label>Pie de Página</label>
+                            <textarea id="cfg-footer" rows="6" style="width: 100%; resize: vertical; font-family: inherit; padding: 8px;" placeholder="Gracias por su compra!&#10;CONSULTAS A NUESTRO WHATSAPP..."></textarea>
                         </div>
                     </div>
                     <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 12px;">
@@ -490,6 +492,9 @@
             <div class="actions-panel">
                 <button class="btn-primary" style="width: 100%; font-size: 1rem; padding: 12px; margin-bottom: 4px;" onclick="printTicket()">
                     🖨️ Imprimir Ticket
+                </button>
+                <button class="btn-secondary" onclick="saveOnlineTicket()" style="flex: 1; padding: 12px; font-size: 1.1rem; background-color: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    💾 Solo Guardar
                 </button>
                 <button class="btn-primary" style="width: 100%; font-size: 1rem; padding: 12px; background-color: #0d9488;" onclick="printCard()">
                     📇 Imprimir Tarjeta
@@ -964,6 +969,42 @@
                 alert("Reimpresión: " + result);
             } catch (error) {
                 alert("Error al reimprimir: " + error);
+            }
+        }
+
+        async function saveOnlineTicket() {
+            const payload = getTicketDataPayload(); 
+            if (payload.products.length === 0) {
+                alert("Carga al menos un producto antes de guardar.");
+                return;
+            }
+            
+            // 1. Guardamos en el historial de siempre
+            saveTicketToHistory(payload);
+
+            // 2. Le sacamos la "foto" al ticket y lo descargamos
+            try {
+                const ticketElement = document.getElementById('ticket-view');
+                
+                // Usamos html2canvas para generar la imagen
+                const canvas = await html2canvas(ticketElement, {
+                    backgroundColor: '#ffffff', // Fondo blanco limpio
+                    scale: 2 // Aumentamos la escala para que se lea perfecto en WhatsApp
+                });
+
+                // Convertimos el canvas a formato imagen PNG
+                const imageURL = canvas.toDataURL('image/png');
+
+                // Creamos una descarga automática invisible
+                const link = document.createElement('a');
+                link.download = `Ticket_EstadoPlay_${Date.now()}.png`; // Nombre del archivo
+                link.href = imageURL;
+                link.click(); // Forzamos el clic para que se baje a tu PC
+
+                alert("¡Ticket guardado en el Historial y descargado como imagen para WhatsApp!");
+            } catch (error) {
+                console.error("Error al generar la imagen:", error);
+                alert("El ticket se guardó en el historial, pero hubo un error al crear la imagen.");
             }
         }
 
