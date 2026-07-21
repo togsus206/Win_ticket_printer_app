@@ -1,16 +1,16 @@
-use serde::{Deserialize, Serialize};
-use serialport;
-use std::io::Write;
+use serde::Deserialize;
 
-// Estructura para listar puertos serie / COM detectados
-#[derive(Serialize)]
-pub struct SerialPortInfo {
-    port_name: String,
-    port_type: String,
-    es_probable_impresora: bool,
-}
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::Foundation::HANDLE;
 
-// Estructuras para mapear los datos del ticket que vienen de JavaScript
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::Foundation::HANDLE;
+#[cfg(target_os = "windows")]
+use windows_sys::Win32::Graphics::Printing::{
+    OpenPrinterW, ClosePrinter, StartDocPrinterW, EndDocPrinter,
+    StartPagePrinter, EndPagePrinter, WritePrinter, DOC_INFO_1W,
+};
+
 #[derive(Deserialize)]
 pub struct ProductoInput {
     name: String,
@@ -23,59 +23,48 @@ pub struct TicketInput {
     header: String,
     footer: String,
     show_date: bool,
-    paper_size: String, // "58" o "80"
-    connection_type: String, // "usb" o "bluetooth"
-    target_device: String, // Nombre de puerto COM o de Impresora USB
+    paper_size: String,
+    target_device: String, 
     products: Vec<ProductoInput>,
     total: f64,
 }
 
 // ==========================================
-// 🔄 COMANDO 1: ESCANEO INTELIGENTE DE PUERTOS
+// 🔄 COMANDO 1: ESCANEAR IMPRESORAS DE WINDOWS
 // ==========================================
 #[tauri::command]
-fn escanear_puertos() -> Vec<SerialPortInfo> {
-    let mut lista_puertos = Vec::new();
-
-    if let Ok(ports) = serialport::available_ports() {
-        for p in ports {
-            let name_lower = p.port_name.to_lowercase();
-            
-            // Filtro inteligente de palabras clave para autoselección
-            let es_probable = name_lower.contains("mtp") 
-                || name_lower.contains("pt-") 
-                || name_lower.contains("pos") 
-                || name_lower.contains("thermal") 
-                || name_lower.contains("printer")
-                || name_lower.contains("rfcomm") // Linux
-                || name_lower.contains("com");   // Windows
-
-            let tipo = match p.port_type {
-                serialport::SerialPortType::UsbPort(_) => "USB".to_string(),
-                serialport::SerialPortType::BluetoothPort => "Bluetooth".to_string(),
-                _ => "Puerto COM".to_string(),
-            };
-
-            lista_puertos.push(SerialPortInfo {
-                port_name: p.port_name,
-                port_type: tipo,
-                es_probable_impresora: es_probable,
-            });
+fn escanear_impresoras() -> Vec<String> {
+    let mut impresoras = Vec::new();
+    
+    // Le pedimos la lista de impresoras a Windows nativamente
+    if let Ok(output) = std::process::Command::new("powershell")
+        .args(&["-Command", "(Get-Printer).Name"])
+        .output()
+    {
+        let result = String::from_utf8_lossy(&output.stdout);
+        for line in result.lines() {
+            let name = line.trim();
+            if !name.is_empty() {
+                impresoras.push(name.to_string());
+            }
         }
     }
-
-    lista_puertos
+    impresoras
 }
 
 // ==========================================
-// 🖨️ COMANDO 2: IMPRESIÓN (WINDOWS / LINUX)
+// 🖨️ COMANDO 2: IMPRESIÓN DIRECTA (WinSpool)
 // ==========================================
 #[tauri::command]
 fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result<String, String> {
-    // 1. Crear el búfer de bytes ESC/POS
+    if ticket.target_device.is_empty() {
+        return Err("No seleccionaste ninguna impresora.".to_string());
+    }
+
+    // 1. Armamos los bytes del ticket igual que antes
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&[27, 64]); // Inicializar
-    bytes.extend_from_slice(&[27, 97, 1]); // Centrado
+    bytes.extend_from_slice(&[27, 64]);
+    bytes.extend_from_slice(&[27, 97, 1]);
     bytes.extend_from_slice(format!("{}\n", ticket.header).as_bytes());
 
     if ticket.show_date && !es_tarjeta_presentacion {
@@ -105,60 +94,59 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
 
     bytes.extend_from_slice(&[27, 97, 1]);
     bytes.extend_from_slice(format!("{}\n", ticket.footer).as_bytes());
-    bytes.extend_from_slice(&[27, 100, 5]); // Avance
-    bytes.extend_from_slice(&[29, 86, 66, 0]); // Corte
+    bytes.extend_from_slice(&[27, 100, 5]);
+    bytes.extend_from_slice(&[29, 86, 66, 0]);
 
-    // 2. ENVIAR LOS BYTES
-    let target = if ticket.target_device.is_empty() {
-        "POS-58".to_string()
-    } else {
-        ticket.target_device.clone()
-    };
+    // 2. ENVIAMOS LOS DATOS A WINDOWS (Modo RAW)
+    #[cfg(target_os = "windows")]
+    unsafe {
+        let mut printer_name: Vec<u16> = ticket.target_device.encode_utf16().chain(std::iter::once(0)).collect();
+        let mut h_printer: HANDLE = std::mem::zeroed();
 
-    // Si es un puerto COM (Windows) o /dev/ (Linux), usamos serialport (Aplica a USB Serial y Bluetooth)
-    let is_serial = target.to_uppercase().starts_with("COM") || target.starts_with("/dev/");
-    
-    if is_serial || ticket.connection_type == "bluetooth" {
-        let mut port = serialport::new(&target, 9600)
-            .timeout(std::time::Duration::from_millis(1000))
-            .open()
-            .map_err(|e| format!("No se pudo abrir el puerto {}: {}", target, e))?;
+        if OpenPrinterW(printer_name.as_mut_ptr(), &mut h_printer, std::ptr::null_mut()) == 0 {
+            return Err("No se encontró la impresora. Verifica que esté conectada.".to_string());
+        }
 
-        port.write_all(&bytes)
-            .map_err(|e| format!("Error al escribir en la impresora: {}", e))?;
-    } else {
-        // IMPRESIÓN NATIVA ESTÁNDAR
-        #[cfg(target_os = "windows")]
-        {
-            // 1. Obtenemos el nombre real de tu PC en la red
-            let pc_name = std::env::var("COMPUTERNAME").unwrap_or_else(|_| "127.0.0.1".to_string());
-            
-            // 2. Armamos 3 rutas posibles de ataque
-            let path_pc = format!("\\\\{}\\{}", pc_name, target);
-            let path_ip = format!("\\\\127.0.0.1\\{}", target);
-            let path_lh = format!("\\\\localhost\\{}", target);
+        let mut doc_name: Vec<u16> = "Ticket Estado Play\0".encode_utf16().collect();
+        let mut data_type: Vec<u16> = "RAW\0".encode_utf16().collect();
 
-            // 3. Intentamos abrir la impresora probando una por una
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .open(&path_pc)
-                .or_else(|_| std::fs::OpenOptions::new().write(true).open(&path_ip))
-                .or_else(|_| std::fs::OpenOptions::new().write(true).open(&path_lh))
-                .map_err(|e| format!("Windows bloqueó el acceso. Código de error exacto: {}", e))?;
-            
-            std::io::Write::write_all(&mut file, &bytes)
-                .map_err(|e| format!("Error al enviar el ticket a Windows: {}", e))?;
+        let doc_info = DOC_INFO_1W {
+            pDocName: doc_name.as_mut_ptr(),
+            pOutputFile: std::ptr::null_mut(),
+            pDatatype: data_type.as_mut_ptr(),
+        };
+
+        if StartDocPrinterW(h_printer, 1, &doc_info as *const _ as *const _) == 0 {
+            ClosePrinter(h_printer);
+            return Err("Windows rechazó el inicio del ticket.".to_string());
+        }
+
+        if StartPagePrinter(h_printer) == 0 {
+            EndDocPrinter(h_printer);
+            ClosePrinter(h_printer);
+            return Err("Error al crear la página.".to_string());
+        }
+
+        let mut bytes_written = 0;
+        let success = WritePrinter(h_printer, bytes.as_ptr() as *const _, bytes.len() as u32, &mut bytes_written);
+
+        EndPagePrinter(h_printer);
+        EndDocPrinter(h_printer);
+        ClosePrinter(h_printer);
+
+        if success == 0 {
+            return Err("Windows bloqueó el envío de datos a la ticketera.".to_string());
         }
     }
 
-    Ok("¡Enviado a la impresora correctamente!".to_string())
+    Ok("¡Impresión enviada correctamente!".to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![escanear_puertos, imprimir_ticket])
+        .invoke_handler(tauri::generate_handler![escanear_impresoras, imprimir_ticket]) // Actualizamos el nombre de la función acá
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

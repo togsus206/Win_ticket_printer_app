@@ -439,29 +439,15 @@
 
             <div class="card">
                 <h2>Conexión de Impresora</h2>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
-                    <div class="form-group">
-                        <label for="cfg-conn-type">Tipo de Conexión</label>
-                        <select id="cfg-conn-type" onchange="toggleConnectionInputs()" style="padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
-                            <option value="usb">USB (Windows/Linux)</option>
-                            <option value="bluetooth">Bluetooth (Puerto COM)</option>
+                <div class="form-group">
+                    <label for="cfg-printer">Seleccionar Ticketera (Windows)</label>
+                    <div style="display: flex; gap: 8px;">
+                        <select id="cfg-printer" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                            <option value="">Ninguna seleccionada</option>
                         </select>
+                        <button class="btn-primary" onclick="scanPrinters()" style="padding: 10px;">🔄 Buscar</button>
                     </div>
-                    <div class="form-group" id="group-usb">
-                        <label for="cfg-usb-printer">Seleccionar Impresora USB</label>
-                        <div style="display: flex; gap: 8px;">
-                            <select id="cfg-usb-printer" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
-                                <option value="">Ninguna seleccionada</option>
-                            </select>
-                            <button class="btn-primary" onclick="scanPrinters()" style="padding: 10px;">🔄</button>
-                        </div>
-                    </div>
-                    <div class="form-group" id="group-bt" style="display: none;">
-                        <label for="cfg-bt-port">Puerto COM / Bluetooth</label>
-                        <select id="cfg-bt-port" style="padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
-                            <option value="">Selecciona puerto COM / Bluetooth</option>
-                        </select>
-                    </div>
+                    <small style="color: #64748b; margin-top: 5px;">Asegurate de que tu impresora USB o Bluetooth esté instalada en el sistema.</small>
                 </div>
             </div>
 
@@ -535,12 +521,6 @@
 
         let customQrBase64 = null;
 
-        // --- PERSISTENCIA Y AJUSTES DE CONEXIÓN ---
-        const cfgConnType = document.getElementById('cfg-conn-type');
-        const groupUsb = document.getElementById('group-usb');
-        const groupBt = document.getElementById('group-bt');
-        const cfgUsbPrinter = document.getElementById('cfg-usb-printer');
-        const cfgBtPort = document.getElementById('cfg-bt-port'); // Mantenemos el ID por compatibilidad, pero ahora será un select
 
         // --- SISTEMA DE PESTAÑAS (NAVEGACIÓN) ---
         function switchTab(tabName) {
@@ -738,113 +718,66 @@
             applySettings();
         });
 
-        function toggleConnectionInputs() {
-            if (cfgConnType.value === 'usb') {
-                groupUsb.style.display = 'block';
-                groupBt.style.display = 'none';
-            } else {
-                groupUsb.style.display = 'none';
-                groupBt.style.display = 'block';
+
+        // Carga automática inicial de la impresora guardada
+        document.addEventListener("DOMContentLoaded", () => {
+            const savedPrinter = localStorage.getItem('selectedPrinter');
+            if (savedPrinter) {
+                document.getElementById('cfg-printer').innerHTML = `<option value="${savedPrinter}">${savedPrinter}</option>`;
             }
-            saveConnectionSettings();
-        }
+        });
 
-        function saveConnectionSettings() {
-            localStorage.setItem('connType', cfgConnType.value);
-            localStorage.setItem('usbPrinter', cfgUsbPrinter.value);
-            localStorage.setItem('btPort', cfgBtPort.value);
-        }
+        document.getElementById('cfg-printer').addEventListener('change', (e) => {
+            localStorage.setItem('selectedPrinter', e.target.value);
+        });
 
-        // Cargar la configuración al arrancar la app
-        function loadConnectionSettings() {
-            cfgConnType.value = localStorage.getItem('connType') || 'usb';
-            cfgBtPort.value = localStorage.getItem('btPort') || '';
-            cfgUsbPrinter.value = localStorage.getItem('usbPrinter') || '';
-            
-            toggleConnectionInputs();
-            
-            // Escuchar cambios para guardarlos al instante (como SharedPreferences)
-            cfgConnType.addEventListener('change', toggleConnectionInputs);
-            cfgUsbPrinter.addEventListener('change', saveConnectionSettings);
-            cfgBtPort.addEventListener('change', saveConnectionSettings);
-        }
-
-        // Llamar a loadConnectionSettings() justo después de loadSettings() al final del script:
-        loadConnectionSettings();
-
-
-        // --- ESCANEO INTELIGENTE DE IMPRESORAS / PUERTOS COM ---
+        // NUEVO ESCANEO INTELIGENTE (Windows API)
         async function scanPrinters() {
             try {
-                // Llamamos al comando inteligente de Rust
-                const puertos = await window.__TAURI__.core.invoke('escanear_puertos');
-                
-                // Limpiamos los selectores
-                cfgUsbPrinter.innerHTML = '<option value="">Autodetectar USB (Recomendado)</option>';
-                cfgBtPort.innerHTML = '<option value="">Selecciona puerto COM / Bluetooth</option>';
+                const impresoras = await window.__TAURI__.core.invoke('escanear_impresoras');
+                const select = document.getElementById('cfg-printer');
+                select.innerHTML = '<option value="">Selecciona tu ticketera</option>';
 
-                let puertoAutoseleccionado = null;
-
-                if (puertos.length === 0) {
-                    alert("No se detectaron puertos activos en el sistema. Asegúrate de encender y emparejar tu impresora.");
+                if (impresoras.length === 0) {
+                    alert("No se detectaron impresoras instaladas en Windows.");
                     return;
                 }
 
-                puertos.forEach(p => {
+                impresoras.forEach(nombre => {
                     const option = document.createElement('option');
-                    option.value = p.port_name;
-                    option.textContent = `${p.port_name} (${p.port_type})`;
-                    
-                    // Si el backend identifica que tiene nombre de ticketera, lo marcamos
-                    if (p.es_probable_impresora) {
-                        option.selected = true;
-                        puertoAutoseleccionado = p.port_name;
-                    }
-
-                    // Agregamos el puerto a ambas listas para dar máxima flexibilidad
-                    cfgUsbPrinter.appendChild(option.cloneNode(true));
-                    cfgBtPort.appendChild(option);
+                    option.value = nombre;
+                    option.textContent = nombre;
+                    select.appendChild(option);
                 });
 
-                // Autoguardado si detectamos la ticketera al toque
-                if (puertoAutoseleccionado) {
-                    if (cfgConnType.value === 'usb') {
-                        cfgUsbPrinter.value = puertoAutoseleccionado;
-                    } else {
-                        cfgBtPort.value = puertoAutoseleccionado;
-                    }
-                    saveConnectionSettings();
-                    alert(`¡Escaneo exitoso! Se autoseleccionó tu ticketera en: ${puertoAutoseleccionado}`);
-                } else {
-                    alert("Escaneo completo. Selecciona el puerto correspondiente a tu impresora de la lista.");
+                // Si ya había una guardada, la vuelve a seleccionar tras el escaneo
+                const savedPrinter = localStorage.getItem('selectedPrinter');
+                if (savedPrinter && impresoras.includes(savedPrinter)) {
+                    select.value = savedPrinter;
                 }
 
             } catch (error) {
                 console.error("Error al escanear:", error);
-                alert("No se pudo escanear los puertos del sistema.");
+                alert("Hubo un problema al buscar impresoras en Windows.");
             }
         }
 
-
-        // --- RECOLECTAR PAYLOAD DE IMPRESIÓN ---
+        // NUEVO PAYLOAD (Mucho más limpio)
         function getTicketDataPayload() {
             const paperSize = document.querySelector('input[name="paper-size"]:checked').value;
-            const connType = cfgConnType.value;
-            
-            // Si es USB usa el selector USB; si es Bluetooth usa el selector COM
-            const targetDevice = connType === 'usb' ? cfgUsbPrinter.value : cfgBtPort.value;
+            const targetDevice = document.getElementById('cfg-printer').value;
 
             return {
-                header: cfgHeader.value,
-                footer: cfgFooter.value,
-                show_date: cfgShowDate.checked,
+                header: document.getElementById('cfg-header').value,
+                footer: document.getElementById('cfg-footer').value,
+                show_date: document.getElementById('cfg-show-date').checked,
                 paper_size: paperSize,
-                connection_type: connType,
                 target_device: targetDevice,
                 products: products,
                 total: products.reduce((acc, p) => acc + (p.qty * p.price), 0)
             };
         }
+
 
         // --- MANDAR A IMPRIMIR REAL ---
         async function printTicket() {
@@ -1010,7 +943,6 @@
 
         // Inicializar la carga de configuraciones al abrir
         loadSettings();
-        loadConnectionSettings();
     </script>
 </body>
 </html>
