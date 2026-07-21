@@ -2,9 +2,6 @@ use serde::Deserialize;
 
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::Foundation::HANDLE;
-
-#[cfg(target_os = "windows")]
-use windows_sys::Win32::Foundation::HANDLE;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::Graphics::Printing::{
     OpenPrinterW, ClosePrinter, StartDocPrinterW, EndDocPrinter,
