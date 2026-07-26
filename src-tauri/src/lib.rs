@@ -89,8 +89,13 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
         bytes.extend_from_slice(divisor.as_bytes());
     }
 
-    bytes.extend_from_slice(&[27, 97, 1]);
-    bytes.extend_from_slice(format!("{}\n", ticket.footer).as_bytes());
+    // Si NO es tarjeta de presentación, agregamos el pie de página
+    if !es_tarjeta_presentacion {
+        bytes.extend_from_slice(&[27, 97, 1]);
+        bytes.extend_from_slice(format!("{}\n", ticket.footer).as_bytes());
+    }
+    
+    
     bytes.extend_from_slice(&[27, 100, 5]);
     bytes.extend_from_slice(&[29, 86, 66, 0]);
 

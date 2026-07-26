@@ -353,7 +353,10 @@
                 </div>
 
                 <div class="card table-container">
-                    <h2>Lista de Productos</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid var(--bg-app); padding-bottom: 8px;">
+                        <h2 style="border: none; margin: 0; padding: 0;">Lista de Productos</h2>
+                        <button class="btn-danger" onclick="clearAllProducts()" style="padding: 6px 12px; font-size: 0.85rem;">🗑️ Vaciar Lista</button>
+                    </div>
                     <table>
                         <thead>
                             <tr>
@@ -365,10 +368,9 @@
                             </tr>
                         </thead>
                         <tbody id="products-table-body">
-                            </tbody>
+                        </tbody>
                     </table>
                 </div>
-
                 <div class="card total-container">
                     <span>TOTAL GENERADO:</span>
                     <span id="total-amount">$0.00</span>
@@ -938,6 +940,18 @@
             } catch (error) {
                 console.error("Error al generar la imagen:", error);
                 alert("El ticket se guardó en el historial, pero hubo un error al crear la imagen.");
+            }
+        }
+
+        // Vaciar todos los productos de la venta actual
+        window.clearAllProducts = function() {
+            if (products.length === 0) {
+                return; // Si ya está vacía, no hacemos nada
+            }
+            
+            if (confirm("¿Estás seguro de que querés eliminar todos los productos de esta venta?")) {
+                products.length = 0; // Vaciamos el array de productos de un plumazo
+                updateUI(); // Llamamos a la función que redibuja la tabla y pone el total en $0.00
             }
         }
 
