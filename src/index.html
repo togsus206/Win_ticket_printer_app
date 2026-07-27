@@ -297,8 +297,9 @@
         }
 
         .ticket-qr canvas, .ticket-qr img {
-            width: 120px !important;
-            height: 120px !important;
+            width: 85px !important;
+            height: 85px !important;
+            object-fit: contain;
         }
 
         .actions-panel {
@@ -309,7 +310,7 @@
             gap: 10px;
         }
     </style>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
 <body>
@@ -405,6 +406,16 @@
             <div id="panel-settings" class="view-panel">
                 <div class="card">
                     <h2>Ajustes del Ticket</h2>
+
+                    <!-- Carga de Logo -->
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+                        <div class="form-group">
+                            <label>Subir Logo del Local (Blanco y negro recomendado)</label>
+                            <input type="file" id="cfg-logo-file" accept="image/*" style="font-size: 0.8rem;">
+                            <button class="btn-danger" id="btn-delete-logo" style="margin-top: 6px; padding: 4px 8px; font-size: 0.75rem; display: none; width: fit-content;">Eliminar Logo</button>
+                        </div>
+                    </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                         <div class="form-group">
                             <label>Encabezado del Ticket</label>
@@ -419,6 +430,11 @@
                     <div style="display: flex; gap: 20px; align-items: center; margin-bottom: 12px;">
                         <label style="display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer;">
                             <input type="checkbox" id="cfg-show-date" checked> Mostrar Fecha y Hora
+                        </label>
+
+                        <!-- Checkbox para habilitar/deshabilitar el QR -->
+                        <label style="display: flex; align-items: center; gap: 6px; font-size: 0.9rem; cursor: pointer;">
+                            <input type="checkbox" id="cfg-show-qr" checked> Imprimir Código QR
                         </label>
                         
                         <label style="font-size: 0.9rem; font-weight: 600; color: #64748b;">Papel:</label>
@@ -459,7 +475,8 @@
             <h3 style="margin-bottom: 12px; color: #475569;">Vista Previa</h3>
             
             <div class="ticket-simulator" id="ticket-view">
-                <div class="ticket-header" id="t-header">Estado Play<br>Córdoba Capital</div>
+                <div id="t-logo-placeholder" style="text-align: center; margin-bottom: 10px;"></div>
+                <div class="ticket-header" id="t-header"><br></div>
                 <div class="ticket-date" id="t-date">Fecha: --/--/---- --:--</div>
                 
                 <div id="t-items">
@@ -520,6 +537,12 @@
         const tDate = document.getElementById('t-date');
         const ticketView = document.getElementById('ticket-view');
         const tQrPlaceholder = document.getElementById('t-qr-placeholder');
+        const tLogoPlaceholder = document.getElementById('t-logo-placeholder');
+
+        const cfgLogoFile = document.getElementById('cfg-logo-file');
+        const btnDeleteLogo = document.getElementById('btn-delete-logo');
+        const cfgShowQr = document.getElementById('cfg-show-qr');
+        let customLogoBase64 = null;
 
         let customQrBase64 = null;
 
@@ -644,6 +667,11 @@
                 btnDeleteQr.style.display = 'block';
             }
 
+            customLogoBase64 = localStorage.getItem('customLogo') || null;
+            if (customLogoBase64) {
+                btnDeleteLogo.style.display = 'block';
+            }
+
             applySettings();
         }
 
@@ -669,35 +697,90 @@
             } else {
                 localStorage.removeItem('customQr');
             }
-        }
 
-        // Generación del QR Dinámico
-        function updateQR() {
-            tQrPlaceholder.innerHTML = '';
-            
-            if (customQrBase64) {
-                const img = document.createElement('img');
-                img.src = customQrBase64;
-                img.style.width = '120px';
-                img.style.height = '120px';
-                tQrPlaceholder.appendChild(img);
+            if (customLogoBase64) {
+                localStorage.setItem('customLogo', customLogoBase64);
             } else {
-                const totalText = ticketTotalText.textContent || "$0.00";
-                const qrContent = `Total: ${totalText}`;
-                
-                const canvas = document.createElement('canvas');
-                tQrPlaceholder.appendChild(canvas);
-                
-                QRCode.toCanvas(canvas, qrContent, { width: 120, margin: 1 }, function (error) {
-                    if (error) console.error(error);
-                });
+                localStorage.removeItem('customLogo');
             }
         }
+
+        // Generación de Imágenes (Logo y QR) para Vista Previa y Rust
+        function updateQR() {
+            // --- 1. Lógica del LOGO ---
+            tLogoPlaceholder.innerHTML = '';
+            if (customLogoBase64) {
+                const imgLogo = document.createElement('img');
+                imgLogo.src = customLogoBase64;
+                // Medidas ajustadas para que quede delicado en la vista previa
+                imgLogo.style.maxWidth = '120px'; 
+                imgLogo.style.maxHeight = '75px';
+                imgLogo.style.objectFit = 'contain';
+                tLogoPlaceholder.appendChild(imgLogo);
+            }
+
+            // --- 2. Lógica del QR ---
+            tQrPlaceholder.innerHTML = '';
+            defaultQrBase64 = null; 
+
+            if (!cfgShowQr || !cfgShowQr.checked) {
+                return;
+            }
+            
+            if (customQrBase64) {
+                const imgQr = document.createElement('img');
+                imgQr.src = customQrBase64;
+                // Medida controlada para el QR personalizado
+                imgQr.style.width = '85px';
+                imgQr.style.height = '85px';
+                tQrPlaceholder.appendChild(imgQr);
+            } else {
+                const totalAmount = products.reduce((acc, p) => acc + (p.qty * p.price), 0);
+                const qrContent = `Total: $${totalAmount.toFixed(2)}`;
+                
+                try {
+                    const tempDiv = document.createElement('div');
+                    
+                    new QRCode(tempDiv, {
+                        text: qrContent,
+                        width: 120, // Tamaño interno (mejor calidad al imprimir)
+                        height: 120,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff"
+                    });
+                    
+                    setTimeout(() => {
+                        const canvas = tempDiv.querySelector('canvas');
+                        if (canvas) {
+                            defaultQrBase64 = canvas.toDataURL("image/png"); 
+                            
+                            const imgQr = document.createElement('img');
+                            imgQr.src = defaultQrBase64;
+                            
+                            // NUEVO: Medida controlada para el QR automático en pantalla
+                            imgQr.style.width = '85px';
+                            imgQr.style.height = '85px';
+                            
+                            tQrPlaceholder.innerHTML = ''; 
+                            tQrPlaceholder.appendChild(imgQr);
+                        } else {
+                            tQrPlaceholder.innerText = "Error leyendo Canvas de QR";
+                        }
+                    }, 50);
+                    
+                } catch (err) {
+                    console.error("Error fatal:", err);
+                    tQrPlaceholder.innerText = "Librería no compatible";
+                }
+            }
+        }
+
 
         // Event Listeners para Ajustes
         cfgHeader.addEventListener('input', applySettings);
         cfgFooter.addEventListener('input', applySettings);
         cfgShowDate.addEventListener('change', applySettings);
+        cfgShowQr.addEventListener('change', applySettings);
         paperRadios.forEach(radio => radio.addEventListener('change', applySettings));
 
         cfgQrFile.addEventListener('change', (e) => {
@@ -717,6 +800,28 @@
             customQrBase64 = null;
             cfgQrFile.value = '';
             btnDeleteQr.style.display = 'none';
+            applySettings();
+        });
+
+        // --- GESTIÓN DEL ARCHIVO DEL LOGO ---
+        cfgLogoFile.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    customLogoBase64 = event.target.result; // Guardamos la imagen en Base64
+                    btnDeleteLogo.style.display = 'block'; // Mostramos el botón rojo de eliminar
+                    applySettings(); // Aplicamos los cambios
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Evento para eliminar el logo
+        btnDeleteLogo.addEventListener('click', () => {
+            customLogoBase64 = null; // Vaciamos la variable
+            cfgLogoFile.value = ''; // Limpiamos el input
+            btnDeleteLogo.style.display = 'none'; // Ocultamos el botón rojo
             applySettings();
         });
 
@@ -764,7 +869,7 @@
             }
         }
 
-        // NUEVO PAYLOAD (Mucho más limpio)
+        // PAYLOAD
         function getTicketDataPayload() {
             const paperSize = document.querySelector('input[name="paper-size"]:checked').value;
             const targetDevice = document.getElementById('cfg-printer').value;
@@ -773,6 +878,9 @@
                 header: document.getElementById('cfg-header').value,
                 footer: document.getElementById('cfg-footer').value,
                 show_date: document.getElementById('cfg-show-date').checked,
+                print_qr: document.getElementById('cfg-show-qr').checked, // Mandamos si quiere QR o no
+                logo_image: customLogoBase64, // Mandamos el logo si existe
+                qr_image: customQrBase64 ? customQrBase64 : defaultQrBase64, // Mandamos el personalizado o el genérico
                 paper_size: paperSize,
                 target_device: targetDevice,
                 products: products,

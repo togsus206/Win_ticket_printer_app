@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use base64::{Engine as _, engine::general_purpose::STANDARD};
 
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::Foundation::HANDLE;
@@ -20,6 +21,9 @@ pub struct TicketInput {
     header: String,
     footer: String,
     show_date: bool,
+    print_qr: bool,
+    logo_image: Option<String>,
+    qr_image: Option<String>,
     paper_size: String,
     target_device: String, 
     products: Vec<ProductoInput>,
@@ -27,13 +31,75 @@ pub struct TicketInput {
 }
 
 // ==========================================
-// 🔄 COMANDO 1: ESCANEAR IMPRESORAS DE WINDOWS
+// 🛠️ HELPER: CONVERTIR IMAGEN A ESC/POS
+// ==========================================
+fn procesar_imagen_escpos(base64_str: &str, max_width: u32) -> Vec<u8> {
+    // 1. Limpiar el encabezado "data:image/png;base64,"
+    let b64_data = if let Some(idx) = base64_str.find(',') {
+        &base64_str[idx + 1..]
+    } else {
+        base64_str
+    };
+
+    // 2. Decodificar Base64
+    let decoded = match STANDARD.decode(b64_data) {
+        Ok(d) => d,
+        Err(_) => return Vec::new(),
+    };
+
+    // 3. Cargar imagen y convertir a Blanco y Negro
+    let img = match image::load_from_memory(&decoded) {
+        Ok(i) => i,
+        Err(_) => return Vec::new(),
+    };
+
+    // Ajustar el ancho para que sea compatible con la térmica (múltiplo de 8)
+    let width = (max_width / 8) * 8;
+    let img = img.thumbnail(width, 500); // Achicar manteniendo proporción
+    let img = img.into_luma8(); // Escala de grises pura
+    
+    let (w, h) = img.dimensions();
+    let width_bytes = w / 8;
+
+    let mut bytes = Vec::new();
+    
+    // 4. Comando ESC/POS de Raster Image (GS v 0)
+    bytes.extend_from_slice(&[29, 118, 48, 0]); 
+    bytes.push((width_bytes % 256) as u8); // xL
+    bytes.push((width_bytes / 256) as u8); // xH
+    bytes.push((h % 256) as u8); // yL
+    bytes.push((h / 256) as u8); // yH
+
+    // 5. Mapear píxeles a bits
+    let mut current_byte: u8 = 0;
+    let mut bit_count = 0;
+
+    for pixel in img.pixels() {
+        let is_black = pixel[0] < 128; // Si es más oscuro que gris medio, es negro
+        current_byte <<= 1;
+        if is_black {
+            current_byte |= 1;
+        }
+        bit_count += 1;
+
+        if bit_count == 8 {
+            bytes.push(current_byte);
+            current_byte = 0;
+            bit_count = 0;
+        }
+    }
+    
+    // Salto de línea extra para despegar la imagen
+    bytes.extend_from_slice(&[27, 74, 30]); 
+    bytes
+}
+
+// ==========================================
+// 🔄 COMANDO 1: ESCANEAR IMPRESORAS
 // ==========================================
 #[tauri::command]
 fn escanear_impresoras() -> Vec<String> {
     let mut impresoras = Vec::new();
-    
-    // Le pedimos la lista de impresoras a Windows nativamente
     if let Ok(output) = std::process::Command::new("powershell")
         .args(&["-Command", "(Get-Printer).Name"])
         .output()
@@ -50,7 +116,7 @@ fn escanear_impresoras() -> Vec<String> {
 }
 
 // ==========================================
-// 🖨️ COMANDO 2: IMPRESIÓN DIRECTA (WinSpool)
+// 🖨️ COMANDO 2: IMPRESIÓN DIRECTA
 // ==========================================
 #[tauri::command]
 fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result<String, String> {
@@ -58,10 +124,19 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
         return Err("No seleccionaste ninguna impresora.".to_string());
     }
 
-    // 1. Armamos los bytes del ticket igual que antes
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(&[27, 64]);
-    bytes.extend_from_slice(&[27, 97, 1]);
+    bytes.extend_from_slice(&[27, 64]); // Reset
+    bytes.extend_from_slice(&[27, 97, 1]); // Centrado
+
+    // --- NUEVO: IMPRIMIR LOGO SI EXISTE ---
+    if let Some(logo) = &ticket.logo_image {
+        if !logo.is_empty() {
+            // Ancho max: 300 puntos para que quede lindo en 58mm
+            bytes.extend_from_slice(&procesar_imagen_escpos(logo, 300));
+        }
+    }
+
+    // Encabezado
     bytes.extend_from_slice(format!("{}\n", ticket.header).as_bytes());
 
     if ticket.show_date && !es_tarjeta_presentacion {
@@ -72,34 +147,46 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
     let divisor = if ticket.paper_size == "80" { "------------------------------------------------\n" } else { "--------------------------------\n" };
     bytes.extend_from_slice(divisor.as_bytes());
 
+    // Productos
     if !es_tarjeta_presentacion {
-        bytes.extend_from_slice(&[27, 97, 0]);
+        bytes.extend_from_slice(&[27, 97, 0]); // Alineación Izquierda
         for prod in &ticket.products {
             let subtotal = (prod.qty as f64) * prod.price;
             bytes.extend_from_slice(format!("{}x {}\n", prod.qty, prod.name).as_bytes());
-            bytes.extend_from_slice(&[27, 97, 2]);
+            bytes.extend_from_slice(&[27, 97, 2]); // Alineación Derecha
             bytes.extend_from_slice(format!("${:.2}\n", subtotal).as_bytes());
-            bytes.extend_from_slice(&[27, 97, 0]);
+            bytes.extend_from_slice(&[27, 97, 0]); // Volver Izquierda
         }
         bytes.extend_from_slice(divisor.as_bytes());
-        bytes.extend_from_slice(&[27, 97, 2]);
-        bytes.extend_from_slice(&[27, 69, 1]);
+        bytes.extend_from_slice(&[27, 97, 2]); 
+        bytes.extend_from_slice(&[27, 69, 1]); // Negrita On
         bytes.extend_from_slice(format!("TOTAL: ${:.2}\n", ticket.total).as_bytes());
-        bytes.extend_from_slice(&[27, 69, 0]);
+        bytes.extend_from_slice(&[27, 69, 0]); // Negrita Off
         bytes.extend_from_slice(divisor.as_bytes());
     }
 
-    // Si NO es tarjeta de presentación, agregamos el pie de página
+    bytes.extend_from_slice(&[27, 97, 1]); // Centrado de nuevo
+
+    // --- NUEVO: IMPRIMIR QR SI ESTÁ ACTIVADO ---
+    if ticket.print_qr {
+        if let Some(qr) = &ticket.qr_image {
+            if !qr.is_empty() {
+                // Ancho max: 200 puntos (más chico que el logo)
+                bytes.extend_from_slice(&procesar_imagen_escpos(qr, 200));
+            }
+        }
+    }
+
+    // Pie de página (se oculta en tarjetas de presentación)
     if !es_tarjeta_presentacion {
-        bytes.extend_from_slice(&[27, 97, 1]);
         bytes.extend_from_slice(format!("{}\n", ticket.footer).as_bytes());
     }
     
-    
+    // Finalización: Avance y Corte
     bytes.extend_from_slice(&[27, 100, 5]);
     bytes.extend_from_slice(&[29, 86, 66, 0]);
 
-    // 2. ENVIAMOS LOS DATOS A WINDOWS (Modo RAW)
+    // ENVIAMOS A WINDOWS (Modo RAW)
     #[cfg(target_os = "windows")]
     unsafe {
         let mut printer_name: Vec<u16> = ticket.target_device.encode_utf16().chain(std::iter::once(0)).collect();
@@ -148,7 +235,7 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![escanear_impresoras, imprimir_ticket]) // Actualizamos el nombre de la función acá
+        .invoke_handler(tauri::generate_handler![escanear_impresoras, imprimir_ticket])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
