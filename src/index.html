@@ -249,6 +249,8 @@
             min-height: 550px; 
             display: flex;
             flex-direction: column;
+            transform: scale(0.9); 
+            transform-origin: top center;
         }
 
         .ticket-header {
@@ -299,7 +301,9 @@
         .ticket-qr canvas, .ticket-qr img {
             width: 85px !important;
             height: 85px !important;
+            min-height: 85px !important; /* Obliga a mantener la altura */
             object-fit: contain;
+            flex-shrink: 0; /* Le prohíbe al sistema achicar la imagen */
         }
 
         .actions-panel {
@@ -486,12 +490,13 @@
                     <span>TOTAL:</span>
                     <span id="t-total">$0.00</span>
                 </div>
-                
-                <div class="ticket-footer" id="t-footer">¡Gracias por tu compra!</div>
-                
+
                 <div class="ticket-qr">
                     <div id="t-qr-placeholder"></div>
                 </div>
+                
+                <div class="ticket-footer" id="t-footer">¡Gracias por tu compra!</div>
+                
             </div>
 
             <div class="actions-panel">

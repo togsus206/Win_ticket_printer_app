@@ -167,8 +167,8 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
 
     bytes.extend_from_slice(&[27, 97, 1]); // Centrado de nuevo
 
-    // --- NUEVO: IMPRIMIR QR SI ESTÁ ACTIVADO ---
-    if ticket.print_qr {
+    // IMPRIMIR QR SI ESTÁ ACTIVADO 
+    if ticket.print_qr && !es_tarjeta_presentacion{
         if let Some(qr) = &ticket.qr_image {
             if !qr.is_empty() {
                 // Ancho max: 200 puntos (más chico que el logo)
