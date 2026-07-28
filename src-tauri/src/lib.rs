@@ -8,6 +8,8 @@ use windows_sys::Win32::Graphics::Printing::{
     OpenPrinterW, ClosePrinter, StartDocPrinterW, EndDocPrinter,
     StartPagePrinter, EndPagePrinter, WritePrinter, DOC_INFO_1W,
 };
+#[cfg(target_os = "windows")]
+use std::os::windows::process::CommandExt;
 
 #[derive(Deserialize)]
 pub struct ProductoInput {
@@ -100,10 +102,16 @@ fn procesar_imagen_escpos(base64_str: &str, max_width: u32) -> Vec<u8> {
 #[tauri::command]
 fn escanear_impresoras() -> Vec<String> {
     let mut impresoras = Vec::new();
-    if let Ok(output) = std::process::Command::new("powershell")
-        .args(&["-Command", "(Get-Printer).Name"])
-        .output()
-    {
+    
+    // Separamos la creación del comando en una variable mutable.
+    let mut comando = std::process::Command::new("powershell");
+    comando.args(&["-Command", "(Get-Printer).Name"]);
+
+    // "capa de invisibilidad" exclusiva para Windows.
+    #[cfg(target_os = "windows")]
+    comando.creation_flags(0x08000000);
+
+    if let Ok(output) = comando.output() {
         let result = String::from_utf8_lossy(&output.stdout);
         for line in result.lines() {
             let name = line.trim();
@@ -112,6 +120,7 @@ fn escanear_impresoras() -> Vec<String> {
             }
         }
     }
+    
     impresoras
 }
 
