@@ -145,6 +145,8 @@
                             <input type="radio" name="paper-size" value="80"> 80mm
                         </label>
                     </div>
+
+
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
                         <div class="form-group">
                             <label>Subir QR Personalizado</label>
@@ -152,22 +154,35 @@
                             <button class="btn-danger" id="btn-delete-qr" style="margin-top: 6px; padding: 4px 8px; font-size: 0.75rem; display: none;">Eliminar QR</button>
                         </div>
                     </div>
+
+                    <!-- Agregá esto junto a las opciones de papel -->
+                    <div class="form-group" style="margin-left: 15px;">
+                            <label style="font-size: 0.9rem; font-weight: 600; color: #64748b;">Tamaño de Imágenes:</label>
+                            <select id="cfg-image-size" style="padding: 6px; border: 1px solid var(--border); border-radius: 6px;">
+                                <option value="chico">Chico</option>
+                                <option value="medio" selected>Medio</option>
+                                <option value="grande">Grande</option>
+                            </select>
+                    </div>
+
+                    <div class="card">
+                        <h2>Conexión de Impresora</h2>
+                        <div class="form-group">
+                            <label for="cfg-printer">Seleccionar Ticketera (Windows)</label>
+                            <div style="display: flex; gap: 8px;">
+                                <select id="cfg-printer" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
+                                    <option value="">Ninguna seleccionada</option>
+                                </select>
+                                <button class="btn-primary" onclick="scanPrinters()" style="padding: 10px;">🔄 Buscar</button>
+                            </div>
+                            <small style="color: #64748b; margin-top: 5px;">Asegurate de que tu impresora USB o Bluetooth esté instalada en el sistema.</small>
+                        </div>
+                    </div>
+
                 </div>
             </div>
 
-            <div class="card">
-                <h2>Conexión de Impresora</h2>
-                <div class="form-group">
-                    <label for="cfg-printer">Seleccionar Ticketera (Windows)</label>
-                    <div style="display: flex; gap: 8px;">
-                        <select id="cfg-printer" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
-                            <option value="">Ninguna seleccionada</option>
-                        </select>
-                        <button class="btn-primary" onclick="scanPrinters()" style="padding: 10px;">🔄 Buscar</button>
-                    </div>
-                    <small style="color: #64748b; margin-top: 5px;">Asegurate de que tu impresora USB o Bluetooth esté instalada en el sistema.</small>
-                </div>
-            </div>
+            
 
         </div>
 

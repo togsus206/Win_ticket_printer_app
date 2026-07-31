@@ -30,54 +30,77 @@ pub struct TicketInput {
     target_device: String, 
     products: Vec<ProductoInput>,
     total: f64,
+    image_size: Option<String>, 
+}
+
+// ==========================================
+// ENVOLVER TEXTO (WORD WRAP)
+// ==========================================
+fn envolver_texto(texto: &str, ancho_maximo: usize) -> String {
+    let mut resultado = String::new();
+    
+    for linea in texto.lines() {
+        let mut longitud_actual = 0;
+        
+        for palabra in linea.split_whitespace() {
+            let longitud_palabra = palabra.chars().count();
+
+            if longitud_actual > 0 && longitud_actual + 1 + longitud_palabra > ancho_maximo {
+                resultado.push('\n');
+                longitud_actual = 0;
+            } else if longitud_actual > 0 {
+                resultado.push(' ');
+                longitud_actual += 1;
+            }
+
+            resultado.push_str(palabra);
+            longitud_actual += longitud_palabra;
+        }
+        resultado.push('\n');
+    }
+    resultado
 }
 
 // ==========================================
 // 🛠️ HELPER: CONVERTIR IMAGEN A ESC/POS
 // ==========================================
 fn procesar_imagen_escpos(base64_str: &str, max_width: u32) -> Vec<u8> {
-    // 1. Limpiar el encabezado "data:image/png;base64,"
     let b64_data = if let Some(idx) = base64_str.find(',') {
         &base64_str[idx + 1..]
     } else {
         base64_str
     };
 
-    // 2. Decodificar Base64
     let decoded = match STANDARD.decode(b64_data) {
         Ok(d) => d,
         Err(_) => return Vec::new(),
     };
 
-    // 3. Cargar imagen y convertir a Blanco y Negro
     let img = match image::load_from_memory(&decoded) {
         Ok(i) => i,
         Err(_) => return Vec::new(),
     };
 
-    // Ajustar el ancho para que sea compatible con la térmica (múltiplo de 8)
     let width = (max_width / 8) * 8;
-    let img = img.thumbnail(width, 500); // Achicar manteniendo proporción
-    let img = img.into_luma8(); // Escala de grises pura
+    let img = img.thumbnail(width, 500); 
+    let img = img.into_luma8(); 
     
     let (w, h) = img.dimensions();
     let width_bytes = w / 8;
 
     let mut bytes = Vec::new();
     
-    // 4. Comando ESC/POS de Raster Image (GS v 0)
     bytes.extend_from_slice(&[29, 118, 48, 0]); 
-    bytes.push((width_bytes % 256) as u8); // xL
-    bytes.push((width_bytes / 256) as u8); // xH
-    bytes.push((h % 256) as u8); // yL
-    bytes.push((h / 256) as u8); // yH
+    bytes.push((width_bytes % 256) as u8); 
+    bytes.push((width_bytes / 256) as u8); 
+    bytes.push((h % 256) as u8); 
+    bytes.push((h / 256) as u8); 
 
-    // 5. Mapear píxeles a bits
     let mut current_byte: u8 = 0;
     let mut bit_count = 0;
 
     for pixel in img.pixels() {
-        let is_black = pixel[0] < 128; // Si es más oscuro que gris medio, es negro
+        let is_black = pixel[0] < 128; 
         current_byte <<= 1;
         if is_black {
             current_byte |= 1;
@@ -91,7 +114,6 @@ fn procesar_imagen_escpos(base64_str: &str, max_width: u32) -> Vec<u8> {
         }
     }
     
-    // Salto de línea extra para despegar la imagen
     bytes.extend_from_slice(&[27, 74, 30]); 
     bytes
 }
@@ -103,11 +125,9 @@ fn procesar_imagen_escpos(base64_str: &str, max_width: u32) -> Vec<u8> {
 fn escanear_impresoras() -> Vec<String> {
     let mut impresoras = Vec::new();
     
-    // Separamos la creación del comando en una variable mutable.
     let mut comando = std::process::Command::new("powershell");
     comando.args(&["-Command", "(Get-Printer).Name"]);
 
-    // "capa de invisibilidad" exclusiva para Windows.
     #[cfg(target_os = "windows")]
     comando.creation_flags(0x08000000);
 
@@ -137,16 +157,31 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
     bytes.extend_from_slice(&[27, 64]); // Reset
     bytes.extend_from_slice(&[27, 97, 1]); // Centrado
 
-    // --- NUEVO: IMPRIMIR LOGO SI EXISTE ---
+    // --- NUEVO: Cálculos dinámicos de tamaño y márgenes ---
+    let ancho_caracteres = if ticket.paper_size == "80" { 48 } else { 32 };
+
+    let logo_width = match ticket.image_size.as_deref() {
+        Some("chico") => 150,
+        Some("medio") => 250,
+        _ => 350, // grande o fallback
+    };
+
+    let qr_width = match ticket.image_size.as_deref() {
+        Some("chico") => 120,
+        Some("medio") => 180,
+        _ => 250, // grande o fallback
+    };
+
+    // Imprimir LOGO con tamaño dinámico
     if let Some(logo) = &ticket.logo_image {
         if !logo.is_empty() {
-            // Ancho max: 300 puntos para que quede lindo en 58mm
-            bytes.extend_from_slice(&procesar_imagen_escpos(logo, 300));
+            bytes.extend_from_slice(&procesar_imagen_escpos(logo, logo_width));
         }
     }
 
-    // Encabezado
-    bytes.extend_from_slice(format!("{}\n", ticket.header).as_bytes());
+    // Encabezado procesado para no cortar palabras
+    let header_prolijo = envolver_texto(&ticket.header, ancho_caracteres);
+    bytes.extend_from_slice(format!("{}\n", header_prolijo).as_bytes());
 
     if ticket.show_date && !es_tarjeta_presentacion {
         let fecha = chrono::Local::now().format("%d/%m/%Y %H:%M").to_string();
@@ -176,19 +211,19 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
 
     bytes.extend_from_slice(&[27, 97, 1]); // Centrado de nuevo
 
-    // IMPRIMIR QR SI ESTÁ ACTIVADO 
-    if ticket.print_qr && !es_tarjeta_presentacion{
+    // Imprimir QR con tamaño dinámico
+    if ticket.print_qr && !es_tarjeta_presentacion {
         if let Some(qr) = &ticket.qr_image {
             if !qr.is_empty() {
-                // Ancho max: 200 puntos (más chico que el logo)
-                bytes.extend_from_slice(&procesar_imagen_escpos(qr, 200));
+                bytes.extend_from_slice(&procesar_imagen_escpos(qr, qr_width));
             }
         }
     }
 
-    // Pie de página (se oculta en tarjetas de presentación)
+    // Pie de página procesado para no cortar palabras
     if !es_tarjeta_presentacion {
-        bytes.extend_from_slice(format!("{}\n", ticket.footer).as_bytes());
+        let footer_prolijo = envolver_texto(&ticket.footer, ancho_caracteres);
+        bytes.extend_from_slice(format!("{}\n", footer_prolijo).as_bytes());
     }
     
     // Finalización: Avance y Corte

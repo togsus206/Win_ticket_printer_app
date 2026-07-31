@@ -162,6 +162,8 @@
                 btnDeleteLogo.style.display = 'block';
             }
 
+            document.getElementById('cfg-image-size').value = localStorage.getItem('imageSize') || 'medio';
+
             applySettings();
         }
 
@@ -193,18 +195,25 @@
             } else {
                 localStorage.removeItem('customLogo');
             }
+
+            localStorage.setItem('imageSize', document.getElementById('cfg-image-size').value);
         }
 
         // Generación de Imágenes (Logo y QR) para Vista Previa y Rust
         function updateQR() {
+            // Leemos qué tamaño se eligio en los Ajustes
+            const sizeMode = document.getElementById('cfg-image-size') ? document.getElementById('cfg-image-size').value : 'medio';
+            
+            // Asignamos los píxeles para la pantalla según la opción
+            let logoSize = sizeMode === 'chico' ? '80px' : (sizeMode === 'grande' ? '160px' : '120px');
+            let qrSize = sizeMode === 'chico' ? '65px' : (sizeMode === 'grande' ? '110px' : '85px');
+
             // --- 1. Lógica del LOGO ---
             tLogoPlaceholder.innerHTML = '';
             if (customLogoBase64) {
                 const imgLogo = document.createElement('img');
                 imgLogo.src = customLogoBase64;
-                // Medidas ajustadas para que quede delicado en la vista previa
-                imgLogo.style.maxWidth = '120px'; 
-                imgLogo.style.maxHeight = '75px';
+                imgLogo.style.width = logoSize; // Aplicamos el tamaño dinámico
                 imgLogo.style.objectFit = 'contain';
                 tLogoPlaceholder.appendChild(imgLogo);
             }
@@ -220,9 +229,8 @@
             if (customQrBase64) {
                 const imgQr = document.createElement('img');
                 imgQr.src = customQrBase64;
-                // Medida controlada para el QR personalizado
-                imgQr.style.width = '85px';
-                imgQr.style.height = '85px';
+                imgQr.style.width = qrSize; // Aplicamos el tamaño dinámico
+                imgQr.style.height = qrSize;
                 tQrPlaceholder.appendChild(imgQr);
             } else {
                 const totalAmount = products.reduce((acc, p) => acc + (p.qty * p.price), 0);
@@ -233,7 +241,7 @@
                     
                     new QRCode(tempDiv, {
                         text: qrContent,
-                        width: 120, // Tamaño interno (mejor calidad al imprimir)
+                        width: 120, 
                         height: 120,
                         colorDark : "#000000",
                         colorLight : "#ffffff"
@@ -247,9 +255,9 @@
                             const imgQr = document.createElement('img');
                             imgQr.src = defaultQrBase64;
                             
-                            // NUEVO: Medida controlada para el QR automático en pantalla
-                            imgQr.style.width = '85px';
-                            imgQr.style.height = '85px';
+                            // Aplicamos el tamaño dinámico
+                            imgQr.style.width = qrSize;
+                            imgQr.style.height = qrSize;
                             
                             tQrPlaceholder.innerHTML = ''; 
                             tQrPlaceholder.appendChild(imgQr);
@@ -328,6 +336,8 @@
             localStorage.setItem('selectedPrinter', e.target.value);
         });
 
+        document.getElementById('cfg-image-size').addEventListener('change', applySettings);
+
         // NUEVO ESCANEO INTELIGENTE (Windows API)
         async function scanPrinters() {
             try {
@@ -374,6 +384,7 @@
                 paper_size: paperSize,
                 target_device: targetDevice,
                 products: products,
+                image_size: document.getElementById('cfg-image-size').value,
                 total: products.reduce((acc, p) => acc + (p.qty * p.price), 0)
             };
         }
@@ -421,17 +432,29 @@
 
         // --- GESTIÓN DEL HISTORIAL DE TICKETS ---
         
-        // Guarda de forma segura el ticket impreso en el localStorage
+        // Guarda el ticket impreso en el localStorage
         function saveTicketToHistory(payload) {
             let history = JSON.parse(localStorage.getItem('ticket_history')) || [];
             
+            const ticketParaHistorial = Object.assign({}, payload);
+            ticketParaHistorial.logo_image = null; 
+            if (customQrBase64) {
+                ticketParaHistorial.qr_image = null; // Borramos el QR solo si es personalizado
+            }
+            
             // Le agregamos marca de tiempo local
             const now = new Date();
-            payload.timestamp = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            payload.id = Date.now(); // ID único para identificar el ticket
+            ticketParaHistorial.timestamp = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            ticketParaHistorial.id = Date.now(); 
 
-            history.unshift(payload); // Lo agregamos al inicio de la lista (más recientes primero)
-            localStorage.setItem('ticket_history', JSON.stringify(history));
+            history.unshift(ticketParaHistorial); 
+            
+            // Usamos un bloque try-catch por si el historial se llega a llenar a futuro
+            try {
+                localStorage.setItem('ticket_history', JSON.stringify(history));
+            } catch (error) {
+                alert("Error de memoria: El historial está muy lleno. Por favor, andá a la pestaña Historial y vacialo.");
+            }
         }
 
         // Dibuja la tabla con el historial
@@ -493,8 +516,13 @@
                 return;
             }
 
+            ticketToPrint.logo_image = customLogoBase64;
+            if (customQrBase64) {
+                ticketToPrint.qr_image = customQrBase64;
+            }
+
             try {
-                // Mandamos a imprimir idéntico al momento que se creó
+                // Mandamos a imprimir
                 const result = await window.__TAURI__.core.invoke('imprimir_ticket', {
                     ticket: ticketToPrint,
                     esTarjetaPresentacion: false

@@ -244,6 +244,7 @@
             flex-direction: column;
             transform: scale(0.9); 
             transform-origin: top center;
+            height: max-content;
         }
 
         .ticket-header {
@@ -292,11 +293,8 @@
         }
 
         .ticket-qr canvas, .ticket-qr img {
-            width: 85px !important;
-            height: 85px !important;
-            min-height: 85px !important; /* Obliga a mantener la altura */
             object-fit: contain;
-            flex-shrink: 0; /* Le prohíbe al sistema achicar la imagen */
+            flex-shrink: 0; 
         }
 
         .actions-panel {
