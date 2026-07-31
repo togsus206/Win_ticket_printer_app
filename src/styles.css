@@ -245,6 +245,7 @@
             transform: scale(0.9); 
             transform-origin: top center;
             height: max-content;
+            flex-shrink: 0;
         }
 
         .ticket-header {
