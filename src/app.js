@@ -76,8 +76,9 @@
             const qty = parseInt(prodQtyInput.value);
             const price = parseFloat(prodPriceInput.value);
 
-            if (!name || isNaN(qty) || qty <= 0 || isNaN(price) || price === 0) {
-                alert('Por favor, completa todos los campos con valores válidos (el precio no puede ser cero).');
+            // Solo verificamos que el nombre no esté vacío y que los otros sean números válidos
+            if (!name || isNaN(qty) || isNaN(price)) {
+                alert('Por favor, completa todos los campos numéricos correctamente.');
                 return;
             }
 
@@ -113,6 +114,9 @@
                     <td>${formatCurrency(prod.price)}</td>
                     <td>${formatCurrency(subtotal)}</td>
                     <td class="actions-cell">
+                        <!-- NUEVO BOTÓN DE EDITAR -->
+                        <button class="btn-primary" onclick="editProduct(${index})" style="padding: 6px 10px; font-size: 0.85rem; background-color: #f59e0b; margin-right: 5px;">✏️ Editar</button>
+                        
                         <button class="btn-danger" onclick="deleteProduct(${index})">Eliminar</button>
                     </td>
                 `;
@@ -139,6 +143,24 @@
         window.deleteProduct = function(index) {
             products.splice(index, 1);
             updateUI();
+        }
+
+        // EDITAR PRODUCTO 
+        window.editProduct = function(index) {
+            // 1. Agarramos los datos del producto seleccionado
+            const prod = products[index];
+            
+            // 2. Los devolvemos a los casilleros de arriba
+            prodNameInput.value = prod.name;
+            prodQtyInput.value = prod.qty;
+            prodPriceInput.value = prod.price;
+            
+            // 3. Lo borramos de la lista de abajo para no duplicarlo
+            products.splice(index, 1);
+            updateUI();
+            
+            // 4. Hacemos que el teclado/cursor vaya directo al precio para corregir rápido
+            prodPriceInput.focus();
         }
 
         // --- PERSISTENCIA LOCAL (SharedPreferences) ---

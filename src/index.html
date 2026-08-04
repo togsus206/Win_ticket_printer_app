@@ -42,7 +42,7 @@
                             </div>
                             <div class="form-group">
                                 <label for="prod-qty">Cant.</label>
-                                <input type="number" id="prod-qty" placeholder="1" min="1" value="1" required>
+                                <input type="number" id="prod-qty" placeholder="1" value="1" required>
                             </div>
                             <div class="form-group">
                                 <label for="prod-price">Precio</label>
@@ -73,7 +73,7 @@
                     </table>
                 </div>
                 <div class="card total-container">
-                    <span>TOTAL GENERADO:</span>
+                    <span>TOTAL:</span>
                     <span id="total-amount">$0.00</span>
                 </div>
             </div>
@@ -96,7 +96,6 @@
                                 </tr>
                             </thead>
                             <tbody id="history-table-body">
-                                <!-- Se inyecta dinámicamente -->
                             </tbody>
                         </table>
                     </div>
@@ -119,7 +118,7 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
                         <div class="form-group">
                             <label>Encabezado del Ticket</label>
-                            <textarea id="cfg-header" rows="6" style="width: 100%; resize: vertical; font-family: inherit; padding: 8px;" placeholder="ESTADO PLAY&#10;de Matías Valle&#10;Rivera Indarte 406 Local 4..."></textarea>
+                            <textarea id="cfg-header" rows="6" style="width: 100%; resize: vertical; font-family: inherit; padding: 8px;" placeholder="Su&#10;Texto&#10;Aqui..."></textarea>
                         </div>
 
                         <div class="form-group">
@@ -155,7 +154,7 @@
                         </div>
                     </div>
 
-                    <!-- Agregá esto junto a las opciones de papel -->
+
                     <div class="form-group" style="margin-left: 15px;">
                             <label style="font-size: 0.9rem; font-weight: 600; color: #64748b;">Tamaño de Imágenes:</label>
                             <select id="cfg-image-size" style="padding: 6px; border: 1px solid var(--border); border-radius: 6px;">
@@ -168,7 +167,7 @@
                     <div class="card">
                         <h2>Conexión de Impresora</h2>
                         <div class="form-group">
-                            <label for="cfg-printer">Seleccionar Ticketera (Windows)</label>
+                            <label for="cfg-printer">Seleccionar Ticketera</label>
                             <div style="display: flex; gap: 8px;">
                                 <select id="cfg-printer" style="flex: 1; padding: 10px; border: 1px solid var(--border); border-radius: 6px;">
                                     <option value="">Ninguna seleccionada</option>
