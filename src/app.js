@@ -479,33 +479,159 @@
             }
         }
 
-        // Dibuja la tabla con el historial
-        function renderHistoryTable() {
+        // Función rápida para limpiar todos los filtros a la vez
+        window.clearFilters = function() {
+            if(document.getElementById('search-history')) document.getElementById('search-history').value = '';
+            
+            const startInput = document.getElementById('date-start');
+            const endInput = document.getElementById('date-end');
+            
+            if(startInput) {
+                startInput.value = '';
+                startInput.max = ''; 
+            }
+            if(endInput) {
+                endInput.value = '';
+                endInput.min = ''; 
+            }
+            
+            renderHistoryTable();
+        }
+
+        // Función para validar que las fechas tengan sentido
+        window.validateDateRange = function(source) {
+            const startInput = document.getElementById('date-start');
+            const endInput = document.getElementById('date-end');
+
+            // 1. Verificamos que no se crucen las fechas si ambas están llenas
+            if (startInput.value && endInput.value) {
+                if (startInput.value > endInput.value) {
+                    alert("⚠️ La fecha 'Desde' no puede ser posterior a la fecha 'Hasta'.");
+                    
+                    // Si se equivocó, le corregimos el casillero automáticamente
+                    if (source === 'start') {
+                        startInput.value = endInput.value;
+                    } else {
+                        endInput.value = startInput.value;
+                    }
+                }
+            }
+
+            // 2. Bloqueamos los días inválidos en el calendario visualmente
+            if (startInput.value) {
+                endInput.min = startInput.value; // El 'Hasta' no puede ser menor al 'Desde'
+            } else {
+                endInput.min = "";
+            }
+
+            if (endInput.value) {
+                startInput.max = endInput.value; // El 'Desde' no puede superar al 'Hasta'
+            } else {
+                startInput.max = "";
+            }
+
+            // 3. Ahora sí, filtramos la tabla
+            renderHistoryTable();
+        }
+
+        // Dibuja la tabla con el historial (Filtros de texto y Fechas combinados)
+        window.renderHistoryTable = function() {
             const historyTableBody = document.getElementById('history-table-body');
             historyTableBody.innerHTML = '';
             
-            const history = JSON.parse(localStorage.getItem('ticket_history')) || [];
+            let history = JSON.parse(localStorage.getItem('ticket_history')) || [];
 
+            // 1. Recopilamos qué hay en los inputs
+            const searchInput = document.getElementById('search-history');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            
+            const dateStartInput = document.getElementById('date-start') ? document.getElementById('date-start').value : '';
+            const dateEndInput = document.getElementById('date-end') ? document.getElementById('date-end').value : '';
+
+            // 2. Si hay ALGO escrito o alguna fecha seleccionada, empezamos a filtrar
+            if (searchTerm !== '' || dateStartInput !== '' || dateEndInput !== '') {
+                
+                // Preparamos las fechas de inicio y fin (si existen) a formato matemático (milisegundos)
+                const startDate = dateStartInput ? new Date(dateStartInput + 'T00:00:00').getTime() : null;
+                const endDate = dateEndInput ? new Date(dateEndInput + 'T23:59:59').getTime() : null;
+
+                history = history.filter(t => {
+                    let pasaFiltroTexto = true;
+                    let pasaFiltroFecha = true;
+
+                    // A. Revisión del texto
+                    if (searchTerm !== '') {
+                        const matchDate = t.timestamp.toLowerCase().includes(searchTerm);
+                        const matchProducts = t.products.some(p => p.name.toLowerCase().includes(searchTerm));
+                        pasaFiltroTexto = matchDate || matchProducts;
+                    }
+
+                    // B. Revisión del rango de fechas
+                    if (startDate || endDate) {
+                        // El ticket dice "31/7/2026 10:30". Lo cortamos y armamos una fecha real.
+                        const partes = t.timestamp.split(' ')[0].split('/'); 
+                        // Formato: Date(año, mes (arranca de 0), día)
+                        const ticketTime = new Date(partes[2], partes[1] - 1, partes[0]).getTime();
+
+                        if (startDate && ticketTime < startDate) pasaFiltroFecha = false;
+                        if (endDate && ticketTime > endDate) pasaFiltroFecha = false;
+                    }
+
+                    // El ticket solo sobrevive si pasa ambas pruebas
+                    return pasaFiltroTexto && pasaFiltroFecha;
+                });
+            }
+
+            // Si después de filtrar no quedó nada
             if (history.length === 0) {
-                historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #64748b;">No hay tickets registrados en el historial.</td></tr>`;
+                const mensaje = (searchTerm !== '' || dateStartInput || dateEndInput) 
+                    ? 'No se encontraron ventas en ese rango o búsqueda.' 
+                    : 'No hay tickets registrados en el historial.';
+                historyTableBody.innerHTML = `<tr><td colspan="4" style="text-align: center; color: #64748b; padding: 20px;">${mensaje}</td></tr>`;
                 return;
             }
 
+            // 3. Dibujamos los tickets que sobrevivieron al filtro
+            let fechaActual = ""; 
+
             history.forEach(t => {
-                const tr = document.createElement('tr');
+                const partesFecha = t.timestamp.split(' ');
+                const fechaTicket = partesFecha[0]; 
+                const horaTicket = t.timestamp.substring(fechaTicket.length).trim(); 
+
+                if (fechaTicket !== fechaActual) {
+                    const trSeparador = document.createElement('tr');
+                    trSeparador.style.backgroundColor = 'var(--border)'; 
+                    trSeparador.innerHTML = `
+                        <td colspan="4" style="text-align: center; font-weight: bold; color: #334155; padding: 8px; font-size: 0.95rem;">
+                            📅 Ventas del día: ${fechaTicket}
+                        </td>
+                    `;
+                    historyTableBody.appendChild(trSeparador);
+                    fechaActual = fechaTicket; 
+                }
                 
-                // Resumen corto de productos
                 const prodSummary = t.products.map(p => `${p.qty}x ${p.name}`).join(', ');
 
+                const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><strong>${t.timestamp}</strong></td>
+                    <td><strong>${horaTicket}</strong></td>
                     <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${prodSummary}">
                         ${prodSummary}
                     </td>
                     <td><strong>$${t.total.toFixed(2)}</strong></td>
                     <td class="actions-cell">
-                        <button class="btn-primary" onclick="reprintTicket(${t.id})" style="padding: 4px 8px; font-size: 0.8rem; background-color: #0d9488;">🖨️ Reimprimir</button>
-                        <button class="btn-danger" onclick="deleteHistoryItem(${t.id})" style="padding: 4px 8px; font-size: 0.8rem;">❌ Borrar</button>
+                        <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-end;">
+                            
+                            <button class="btn-primary" onclick="reprintTicket(${t.id})" style="width: 120px; padding: 6px 0; font-size: 0.85rem; background-color: #0d9488; display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0;">
+                                🖨️ Reimprimir
+                            </button>
+                            
+                            <button class="btn-danger" onclick="deleteHistoryItem(${t.id})" style="width: 120px; padding: 6px 0; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0;">
+                                ❌ Borrar
+                            </button>
+                            
+                        </div>
                     </td>
                 `;
                 historyTableBody.appendChild(tr);
