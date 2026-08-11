@@ -622,6 +622,10 @@
                     <td><strong>$${t.total.toFixed(2)}</strong></td>
                     <td class="actions-cell">
                         <div style="display: flex; gap: 8px; align-items: center; justify-content: flex-end;">
+
+                            <button onclick="copyTicketProducts(${t.id}, this)" style="width: 100px; padding: 6px 0; font-size: 0.85rem; background-color: #3b82f6; color: white; border: none; border-radius: 4px; display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0; cursor: pointer; transition: 0.3s;">
+                                📋 Copiar
+                            </button>
                             
                             <button class="btn-primary" onclick="reprintTicket(${t.id})" style="width: 120px; padding: 6px 0; font-size: 0.85rem; background-color: #0d9488; display: flex; align-items: center; justify-content: center; gap: 5px; margin: 0;">
                                 🖨️ Reimprimir
@@ -679,6 +683,42 @@
             } catch (error) {
                 alert("Error al reimprimir: " + error);
             }
+        }
+
+        // Copiar cadena de texto 
+        window.copyTicketProducts = function(id, btnElement) {
+            const history = JSON.parse(localStorage.getItem('ticket_history')) || [];
+            const ticket = history.find(item => item.id === id);
+
+            if (!ticket) {
+                alert("No se encontró el ticket.");
+                return;
+            }
+
+            // Agarramos los productos y los unimos con un "+" en el medio
+            const textoCopiar = ticket.products.map(p => `${p.qty}x ${p.name}`).join(' + ');
+
+            // Usamos la API del sistema para mandarlo al portapapeles
+            navigator.clipboard.writeText(textoCopiar).then(() => {
+                
+                // Guardamos cómo era el botón originalmente
+                const originalText = btnElement.innerHTML;
+                const originalColor = btnElement.style.backgroundColor;
+                
+                // Lo ponemos verde con el tilde
+                btnElement.innerHTML = '✅ Copiado';
+                btnElement.style.backgroundColor = '#10b981'; // Verde
+                
+                // A los 1.5 segundos, lo devolvemos a la normalidad
+                setTimeout(() => {
+                    btnElement.innerHTML = originalText;
+                    btnElement.style.backgroundColor = originalColor;
+                }, 1500);
+
+            }).catch(err => {
+                console.error("Error al copiar: ", err);
+                alert("Hubo un error al intentar copiar el texto.");
+            });
         }
 
         window.saveOnlineTicket = async function() {
