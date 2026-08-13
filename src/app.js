@@ -108,26 +108,27 @@
                 total += subtotal;
 
                 const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${prod.name}</td>
-                    <td>${prod.qty}</td>
-                    <td>${formatCurrency(prod.price)}</td>
-                    <td>${formatCurrency(subtotal)}</td>
-                    <td class="actions-cell">
-                        <!-- NUEVO BOTÓN DE EDITAR -->
-                        <button class="btn-primary" onclick="editProduct(${index})" style="padding: 6px 10px; font-size: 0.85rem; background-color: #f59e0b; margin-right: 5px;">✏️ Editar</button>
-                        
-                        <button class="btn-danger" onclick="deleteProduct(${index})">Eliminar</button>
-                    </td>
-                `;
-                tableBody.appendChild(tr);
-
                 const ticketItem = document.createElement('div');
                 ticketItem.className = 'ticket-item';
-                ticketItem.innerHTML = `
-                    <span>${prod.qty}x ${prod.name}</span>
-                    <span>${formatCurrency(subtotal)}</span>
-                `;
+
+                // NUEVO: Formato condicional para la vista previa
+                if (prod.qty > 1) {
+                    ticketItem.innerHTML = `
+                        <div style="display: flex; flex-direction: column; width: 100%;">
+                            <span>${prod.qty}x ${prod.name}</span>
+                            <div style="display: flex; justify-content: space-between; color: #555; font-size: 0.9em; padding-left: 15px;">
+                                <span>($${prod.price.toFixed(2)} c/u)</span>
+                                <span style="color: black; font-weight: bold;">${formatCurrency(subtotal)}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    ticketItem.innerHTML = `
+                        <span>${prod.qty}x ${prod.name}</span>
+                        <span>${formatCurrency(subtotal)}</span>
+                    `;
+                }
+                
                 ticketItemsContainer.appendChild(ticketItem);
             });
 

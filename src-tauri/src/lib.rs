@@ -196,17 +196,26 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
         bytes.extend_from_slice(&[27, 97, 0]); // Alineación Izquierda
         for prod in &ticket.products {
             let subtotal = (prod.qty as f64) * prod.price;
-            bytes.extend_from_slice(format!("{}x {}\n", prod.qty, prod.name).as_bytes());
-            bytes.extend_from_slice(&[27, 97, 2]); // Alineación Derecha
-            bytes.extend_from_slice(format!("${:.2}\n", subtotal).as_bytes());
-            bytes.extend_from_slice(&[27, 97, 0]); // Volver Izquierda
+            
+            if prod.qty > 1 {
+                // Renglón 1: 2x Cable USB-c
+                bytes.extend_from_slice(format!("{}x {}\n", prod.qty, prod.name).as_bytes());
+                
+                // Renglón 2:   ($3000.00 c/u)          $6000.00
+                let linea_detalle = format!("   (${:.2} c/u)", prod.price);
+                bytes.extend_from_slice(linea_detalle.as_bytes());
+                
+                bytes.extend_from_slice(&[27, 97, 2]); // Alineación Derecha
+                bytes.extend_from_slice(format!("${:.2}\n", subtotal).as_bytes());
+                bytes.extend_from_slice(&[27, 97, 0]); // Volver Izquierda
+            } else {
+                // Formato tradicional para una sola unidad
+                bytes.extend_from_slice(format!("{}x {}\n", prod.qty, prod.name).as_bytes());
+                bytes.extend_from_slice(&[27, 97, 2]); // Alineación Derecha
+                bytes.extend_from_slice(format!("${:.2}\n", subtotal).as_bytes());
+                bytes.extend_from_slice(&[27, 97, 0]); // Volver Izquierda
+            }
         }
-        bytes.extend_from_slice(divisor.as_bytes());
-        bytes.extend_from_slice(&[27, 97, 2]); 
-        bytes.extend_from_slice(&[27, 69, 1]); // Negrita On
-        bytes.extend_from_slice(format!("TOTAL: ${:.2}\n", ticket.total).as_bytes());
-        bytes.extend_from_slice(&[27, 69, 0]); // Negrita Off
-        bytes.extend_from_slice(divisor.as_bytes());
     }
 
     bytes.extend_from_slice(&[27, 97, 1]); // Centrado de nuevo
