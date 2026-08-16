@@ -157,7 +157,7 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
     bytes.extend_from_slice(&[27, 64]); // Reset
     bytes.extend_from_slice(&[27, 97, 1]); // Centrado
 
-    // --- NUEVO: Cálculos dinámicos de tamaño y márgenes ---
+    // Cálculos dinámicos de tamaño y márgenes ---
     let ancho_caracteres = if ticket.paper_size == "80" { 48 } else { 32 };
 
     let logo_width = match ticket.image_size.as_deref() {
@@ -193,7 +193,8 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
 
     // Productos
     if !es_tarjeta_presentacion {
-        bytes.extend_from_slice(&[27, 97, 0]); // Alineación Izquierda
+        bytes.extend_from_slice(&[27, 97, 0]); // Alineación Izquierda fija para la lista
+        
         for prod in &ticket.products {
             let subtotal = (prod.qty as f64) * prod.price;
             
@@ -201,24 +202,41 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
                 // Renglón 1: 2x Cable USB-c
                 bytes.extend_from_slice(format!("{}x {}\n", prod.qty, prod.name).as_bytes());
                 
-                // Renglón 2:   ($3000.00 c/u)          $6000.00
-                let linea_detalle = format!("   (${:.2} c/u)", prod.price);
-                bytes.extend_from_slice(linea_detalle.as_bytes());
+                // Renglón 2: Unitario a la izquierda, Subtotal a la derecha
+                let izq = format!("  (${:.2} c/u)", prod.price);
+                let der = format!("${:.2}", subtotal);
                 
-                bytes.extend_from_slice(&[27, 97, 2]); // Alineación Derecha
-                bytes.extend_from_slice(format!("${:.2}\n", subtotal).as_bytes());
-                bytes.extend_from_slice(&[27, 97, 0]); // Volver Izquierda
+                // Magia matemática: rellenamos con espacios el centro
+                let chars_totales = izq.chars().count() + der.chars().count();
+                let espacios_faltantes = if ancho_caracteres > chars_totales { ancho_caracteres - chars_totales } else { 1 };
+                let espacios = " ".repeat(espacios_faltantes);
+                
+                bytes.extend_from_slice(format!("{}{}{}\n", izq, espacios, der).as_bytes());
+                
             } else {
-                // Formato tradicional para una sola unidad
-                bytes.extend_from_slice(format!("{}x {}\n", prod.qty, prod.name).as_bytes());
-                bytes.extend_from_slice(&[27, 97, 2]); // Alineación Derecha
-                bytes.extend_from_slice(format!("${:.2}\n", subtotal).as_bytes());
-                bytes.extend_from_slice(&[27, 97, 0]); // Volver Izquierda
+                // Formato para 1 unidad: Todo en un renglón
+                let izq = format!("{}x {}", prod.qty, prod.name);
+                let der = format!("${:.2}", subtotal);
+                
+                // Magia matemática para alinear a los bordes
+                let chars_totales = izq.chars().count() + der.chars().count();
+                let espacios_faltantes = if ancho_caracteres > chars_totales { ancho_caracteres - chars_totales } else { 1 };
+                let espacios = " ".repeat(espacios_faltantes);
+                
+                bytes.extend_from_slice(format!("{}{}{}\n", izq, espacios, der).as_bytes());
             }
         }
+        
+        // --- RESTAURAMOS LAS LÍNEAS Y EL TOTAL ---
+        bytes.extend_from_slice(divisor.as_bytes());
+        bytes.extend_from_slice(&[27, 97, 2]); // Alineación Derecha para el texto del total
+        bytes.extend_from_slice(&[27, 69, 1]); // Negrita On
+        bytes.extend_from_slice(format!("TOTAL: ${:.2}\n", ticket.total).as_bytes());
+        bytes.extend_from_slice(&[27, 69, 0]); // Negrita Off
+        bytes.extend_from_slice(divisor.as_bytes());
     }
 
-    bytes.extend_from_slice(&[27, 97, 1]); // Centrado de nuevo
+    bytes.extend_from_slice(&[27, 97, 1]); // Centrado de nuevo para el QR
 
     // Imprimir QR con tamaño dinámico
     if ticket.print_qr && !es_tarjeta_presentacion {
