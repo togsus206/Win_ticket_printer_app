@@ -124,6 +124,8 @@
                 //  DIBUJAR EN EL TICKET (VISTA PREVIA) ---
                 const ticketItem = document.createElement('div');
                 ticketItem.className = 'ticket-item';
+                ticketItem.style.width = '100%';
+                ticketItem.style.marginBottom = '4px';
 
                 if (prod.qty > 1) {
                     ticketItem.innerHTML = `
@@ -136,9 +138,12 @@
                         </div>
                     `;
                 } else {
+                    // Vista previa adaptativa para textos largos
                     ticketItem.innerHTML = `
-                        <span>${prod.qty}x ${prod.name}</span>
-                        <span>${formatCurrency(subtotal)}</span>
+                        <div style="display: flex; justify-content: space-between; width: 100%; flex-wrap: wrap; gap: 2px;">
+                            <span style="flex: 1; min-width: 60%; word-break: break-word;">${prod.qty}x ${prod.name}</span>
+                            <span style="font-weight: normal; text-align: right; flex-shrink: 0;">${formatCurrency(subtotal)}</span>
+                        </div>
                     `;
                 }
                 

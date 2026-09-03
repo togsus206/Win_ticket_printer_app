@@ -192,49 +192,57 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
     bytes.extend_from_slice(divisor.as_bytes());
 
     // Productos
-    if !es_tarjeta_presentacion {
-        bytes.extend_from_slice(&[27, 97, 0]); // Alineación Izquierda fija para la lista
-        
-        for prod in &ticket.products {
-            let subtotal = (prod.qty as f64) * prod.price;
+        if !es_tarjeta_presentacion {
+            bytes.extend_from_slice(&[27, 97, 0]); // Alineación Izquierda fija para la lista
             
-            if prod.qty > 1 {
-                // Renglón 1: 2x Cable USB-c
-                bytes.extend_from_slice(format!("{}x {}\n", prod.qty, prod.name).as_bytes());
+            for prod in &ticket.products {
+                let subtotal = (prod.qty as f64) * prod.price;
                 
-                // Renglón 2: Unitario a la izquierda, Subtotal a la derecha
-                let izq = format!("  (${:.2} c/u)", prod.price);
-                let der = format!("${:.2}", subtotal);
-                
-                // Magia matemática: rellenamos con espacios el centro
-                let chars_totales = izq.chars().count() + der.chars().count();
-                let espacios_faltantes = if ancho_caracteres > chars_totales { ancho_caracteres - chars_totales } else { 1 };
-                let espacios = " ".repeat(espacios_faltantes);
-                
-                bytes.extend_from_slice(format!("{}{}{}\n", izq, espacios, der).as_bytes());
-                
-            } else {
-                // Formato para 1 unidad: Todo en un renglón
-                let izq = format!("{}x {}", prod.qty, prod.name);
-                let der = format!("${:.2}", subtotal);
-                
-                // Magia matemática para alinear a los bordes
-                let chars_totales = izq.chars().count() + der.chars().count();
-                let espacios_faltantes = if ancho_caracteres > chars_totales { ancho_caracteres - chars_totales } else { 1 };
-                let espacios = " ".repeat(espacios_faltantes);
-                
-                bytes.extend_from_slice(format!("{}{}{}\n", izq, espacios, der).as_bytes());
+                if prod.qty > 1 {
+                    // Renglón 1: 2x Cable USB-c (Si es largo, la impresora lo corta y baja, está perfecto)
+                    bytes.extend_from_slice(format!("{}x {}\n", prod.qty, prod.name).as_bytes());
+                    
+                    // Renglón 2: Unitario a la izquierda, Subtotal a la derecha
+                    let izq = format!("  (${:.2} c/u)", prod.price);
+                    let der = format!("${:.2}", subtotal);
+                    
+                    let chars_totales = izq.chars().count() + der.chars().count();
+                    let espacios_faltantes = if ancho_caracteres > chars_totales { ancho_caracteres - chars_totales } else { 1 };
+                    let espacios = " ".repeat(espacios_faltantes);
+                    
+                    bytes.extend_from_slice(format!("{}{}{}\n", izq, espacios, der).as_bytes());
+                    
+                } else {
+                    // Formato Inteligente para 1 unidad ---
+                    let izq = format!("{}x {}", prod.qty, prod.name);
+                    let der = format!("${:.2}", subtotal);
+                    
+                    let chars_totales = izq.chars().count() + der.chars().count();
+                    
+                    // Si el nombre y el precio entran juntos (con un espacio de margen)
+                    if chars_totales < ancho_caracteres {
+                        let espacios_faltantes = ancho_caracteres - chars_totales;
+                        let espacios = " ".repeat(espacios_faltantes);
+                        bytes.extend_from_slice(format!("{}{}{}\n", izq, espacios, der).as_bytes());
+                    } else {
+                        // Si es muy largo: Imprime el nombre, baja un renglón y pega el precio a la derecha
+                        bytes.extend_from_slice(format!("{}\n", izq).as_bytes());
+                        
+                        let espacios_faltantes = if ancho_caracteres > der.chars().count() { ancho_caracteres - der.chars().count() } else { 0 };
+                        let espacios = " ".repeat(espacios_faltantes);
+                        bytes.extend_from_slice(format!("{}{}\n", espacios, der).as_bytes());
+                    }
+                }
             }
+            
+            // --- RESTAURAMOS LAS LÍNEAS Y EL TOTAL ---
+            bytes.extend_from_slice(divisor.as_bytes());
+            bytes.extend_from_slice(&[27, 97, 2]); // Alineación Derecha para el texto del total
+            bytes.extend_from_slice(&[27, 69, 1]); // Negrita On
+            bytes.extend_from_slice(format!("TOTAL: ${:.2}\n", ticket.total).as_bytes());
+            bytes.extend_from_slice(&[27, 69, 0]); // Negrita Off
+            bytes.extend_from_slice(divisor.as_bytes());
         }
-        
-        // --- RESTAURAMOS LAS LÍNEAS Y EL TOTAL ---
-        bytes.extend_from_slice(divisor.as_bytes());
-        bytes.extend_from_slice(&[27, 97, 2]); // Alineación Derecha para el texto del total
-        bytes.extend_from_slice(&[27, 69, 1]); // Negrita On
-        bytes.extend_from_slice(format!("TOTAL: ${:.2}\n", ticket.total).as_bytes());
-        bytes.extend_from_slice(&[27, 69, 0]); // Negrita Off
-        bytes.extend_from_slice(divisor.as_bytes());
-    }
 
     bytes.extend_from_slice(&[27, 97, 1]); // Centrado de nuevo para el QR
 
