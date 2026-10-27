@@ -30,7 +30,10 @@ pub struct TicketInput {
     target_device: String, 
     products: Vec<ProductoInput>,
     total: f64,
-    image_size: Option<String>, 
+    image_size: Option<String>,
+    
+    #[serde(default)]
+    pub es_presupuesto: bool, 
 }
 
 // ==========================================
@@ -191,6 +194,13 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
     let divisor = if ticket.paper_size == "80" { "------------------------------------------------\n" } else { "--------------------------------\n" };
     bytes.extend_from_slice(divisor.as_bytes());
 
+    if ticket.es_presupuesto {
+        bytes.extend_from_slice(&[27, 97, 1]); // Centrado
+        bytes.extend_from_slice(&[27, 69, 1]); // Negrita On
+        bytes.extend_from_slice(b"\n*** PRESUPUESTO ***\n\n");
+        bytes.extend_from_slice(&[27, 69, 0]); // Negrita Off
+    }
+
     // Productos
         if !es_tarjeta_presentacion {
             bytes.extend_from_slice(&[27, 97, 0]); // Alineación Izquierda fija para la lista
@@ -244,22 +254,32 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
             bytes.extend_from_slice(divisor.as_bytes());
         }
 
-    bytes.extend_from_slice(&[27, 97, 1]); // Centrado de nuevo para el QR
 
-    // Imprimir QR con tamaño dinámico
-    if ticket.print_qr && !es_tarjeta_presentacion {
-        if let Some(qr) = &ticket.qr_image {
-            if !qr.is_empty() {
-                bytes.extend_from_slice(&procesar_imagen_escpos(qr, qr_width));
+    if !ticket.es_presupuesto {
+        bytes.extend_from_slice(&[27, 97, 1]); // Centrado de nuevo para el QR
+
+        // Imprimir QR con tamaño dinámico
+        if ticket.print_qr && !es_tarjeta_presentacion {
+            if let Some(qr) = &ticket.qr_image {
+                if !qr.is_empty() {
+                    bytes.extend_from_slice(&procesar_imagen_escpos(qr, qr_width));
+                }
             }
         }
-    }
 
     // Pie de página procesado para no cortar palabras
     if !es_tarjeta_presentacion {
         let footer_prolijo = envolver_texto(&ticket.footer, ancho_caracteres);
         bytes.extend_from_slice(format!("{}\n", footer_prolijo).as_bytes());
     }
+    
+    } else {
+        // Y le damos un cierre profesional al presupuesto (sin QR)
+        bytes.extend_from_slice(&[27, 97, 1]); // Centrado
+        bytes.extend_from_slice(b"\nValido por 15 dias.\nPrecios sujetos a modificacion.\n");
+    }
+  
+
     
     // Finalización: Avance y Corte
     bytes.extend_from_slice(&[27, 100, 5]);
@@ -309,6 +329,8 @@ fn imprimir_ticket(ticket: TicketInput, es_tarjeta_presentacion: bool) -> Result
 
     Ok("¡Impresión enviada correctamente!".to_string())
 }
+
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

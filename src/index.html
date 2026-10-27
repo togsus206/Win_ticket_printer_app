@@ -22,9 +22,17 @@
         <button class="nav-btn" id="tab-history-btn" onclick="switchTab('history')">
             <span>📜</span>Historial
         </button>
+        <button class="nav-btn" id="tab-stock-btn" onclick="switchTab('stock')">
+            <span>📦</span>Stock
+        </button>
+        <button class="nav-btn" id="tab-budget-btn" onclick="switchTab('budget')">
+            <span>📋</span>Presup
+        </button>
         <button class="nav-btn" id="tab-settings-btn" onclick="switchTab('settings')">
             <span>⚙️</span>Ajustes
         </button>
+        
+
     </div>
 
     <div class="app-container">
@@ -38,7 +46,8 @@
                         <div class="form-grid">
                             <div class="form-group">
                                 <label for="prod-name">Descripción</label>
-                                <input type="text" id="prod-name" placeholder="Ej: Cable HDMI" required>
+                                <input type="text" id="prod-name" list="stock-options" placeholder="Ej: Cable HDMI" required>
+                                <datalist id="stock-options"></datalist>
                             </div>
                             <div class="form-group">
                                 <label for="prod-qty">Cant.</label>
@@ -116,6 +125,72 @@
                     </div>
                 </div>
             </div>
+            
+
+            <!-- PANEL DE STOCK -->
+            <div id="panel-stock" class="view-panel">
+                
+                <!-- Tarjeta de Estadísticas -->
+                <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                    <div class="card" style="flex: 1; background-color: #f8fafc; border-left: 4px solid #3b82f6;">
+                        <h3 style="margin: 0; color: #64748b; font-size: 0.9rem;">Total de Productos Distintos</h3>
+                        <p id="stock-total-items" style="margin: 5px 0 0 0; font-size: 1.5rem; font-weight: bold; color: #0f172a;">0</p>
+                    </div>
+                    <div class="card" style="flex: 1; background-color: #f8fafc; border-left: 4px solid #10b981;">
+                        <h3 style="margin: 0; color: #64748b; font-size: 0.9rem;">Valor Total del Stock</h3>
+                        <p id="stock-total-value" style="margin: 5px 0 0 0; font-size: 1.5rem; font-weight: bold; color: #0f172a;">$0.00</p>
+                    </div>
+                </div>
+
+                <!-- Formulario de Carga -->
+                <div class="card">
+                    <h2 id="stock-form-title">Cargar Nuevo Producto</h2>
+                    <form id="stock-form" onsubmit="event.preventDefault();">
+                        <input type="hidden" id="stock-edit-id" value="-1">
+                        <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 1.5fr auto; align-items: end; gap: 10px;">
+                            <div class="form-group">
+                                <label>Nombre del Producto</label>
+                                <input type="text" id="stock-name" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Precio</label>
+                                <input type="number" id="stock-price" step="0.01" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Cant.</label>
+                                <input type="number" id="stock-qty" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Foto (Opcional)</label>
+                                <input type="file" id="stock-image" accept="image/*" style="font-size: 0.75rem;">
+                                <input type="hidden" id="stock-image-base64">
+                            </div>
+                            <button type="submit" class="btn-primary" id="btn-save-stock" style="height: 38px;">Guardar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Lista de Stock -->
+                <div class="card" style="margin-top: 20px; flex: 1; display: flex; flex-direction: column;">
+                    <h2>Inventario Actual</h2>
+                    <div class="table-container" style="flex: 1; overflow-y: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Foto</th>
+                                    <th>Producto</th>
+                                    <th>Precio</th>
+                                    <th>Stock</th>
+                                    <th class="actions-cell">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="stock-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
 
             <div id="panel-settings" class="view-panel">
                 <div class="card">
@@ -193,6 +268,60 @@
                         </div>
                     </div>
 
+                </div>
+            </div>
+
+
+            <!-- PANEL DE PRESUPUESTOS -->
+            <div id="panel-budget" class="view-panel">
+                <div class="card">
+                    <h2>Cargar Ítem al Presupuesto</h2>
+                    <form id="budget-form" onsubmit="event.preventDefault();">
+                        <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr auto; align-items: end; gap: 15px;">
+                            <div class="form-group">
+                                <label for="budget-name">Descripción detallada</label>
+                                <!-- Usamos un textarea para que puedas escribir varias líneas cómodo -->
+                                <textarea id="budget-name" rows="2" placeholder="Ej: Revisión y limpieza de hardware..." required style="width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="budget-qty">Cant.</label>
+                                <input type="number" id="budget-qty" placeholder="1" value="1" min="0" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="budget-price">Precio</label>
+                                <input type="number" id="budget-price" placeholder="0.00" step="0.01" required>
+                            </div>
+                            <button type="submit" class="btn-primary" id="btn-add-budget" style="height: 38px;">Agregar</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="card" style="margin-top: 20px; flex: 1; display: flex; flex-direction: column;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid var(--bg-app); padding-bottom: 8px;">
+                        <h2 style="border: none; margin: 0;">Lista del Presupuesto</h2>
+                        <button class="btn-danger" onclick="clearBudget()" style="padding: 6px 12px; font-size: 0.85rem;">🗑️ Vaciar Lista</button>
+                    </div>
+                    <div class="table-container" style="flex: 1; overflow-y: auto;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Descripción</th>
+                                    <th>Cant.</th>
+                                    <th>Precio Unit.</th>
+                                    <th>Subtotal</th>
+                                    <th class="actions-cell">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="budget-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div style="margin-top: 20px; display: flex; justify-content: space-between; align-items: center; padding-top: 15px; border-top: 2px solid var(--bg-app);">
+                        <h2 style="margin: 0; font-size: 1.5rem;">TOTAL: <span id="budget-total-amount" style="color: #0ea5e9;">$0.00</span></h2>
+                        <!-- Este botón dispara la impresión con la bandera es_presupuesto en true -->
+                        <button class="btn-primary" onclick="printBudget()" style="padding: 12px 24px; font-size: 1.1rem; background-color: #0ea5e9;">🖨️ Imprimir Presupuesto</button>
+                    </div>
                 </div>
             </div>
 

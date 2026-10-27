@@ -36,27 +36,77 @@
         let customQrBase64 = null;
         let defaultQrBase64 = null;
 
+        // --- SISTEMA DE PRESUPUESTOS ---
+        let budgetItems = [];
+        const budgetTableBody = document.getElementById('budget-table-body');
+        const budgetTotalAmountText = document.getElementById('budget-total-amount');
+
 
         // --- SISTEMA DE PESTAÑAS (NAVEGACIÓN) ---
         function switchTab(tabName) {
             document.getElementById('tab-sales-btn').classList.remove('active');
             document.getElementById('tab-history-btn').classList.remove('active');
             document.getElementById('tab-settings-btn').classList.remove('active');
+            document.getElementById('tab-budget-btn').classList.remove('active');
+            if (document.getElementById('tab-stock-btn')) document.getElementById('tab-stock-btn').classList.remove('active');
             
             document.getElementById('panel-sales').classList.remove('active');
             document.getElementById('panel-history').classList.remove('active');
             document.getElementById('panel-settings').classList.remove('active');
+            document.getElementById('panel-budget').classList.remove('active');
+            if (document.getElementById('panel-stock')) document.getElementById('panel-stock').classList.remove('active');
+
+            // --- LÓGICA DE VISTA PREVIA ---
+            const tFooter = document.getElementById('t-footer');
+            const qrContainer = document.querySelector('.ticket-qr');
+            
+            // Creamos el título de presupuesto si no existe
+            let presTitle = document.getElementById('t-presupuesto-title');
+            if (!presTitle) {
+                presTitle = document.createElement('div');
+                presTitle.id = 't-presupuesto-title';
+                presTitle.style = "text-align: center; font-weight: bold; margin: 10px 0; font-size: 1.1rem;";
+                presTitle.innerText = "*** PRESUPUESTO ***";
+                const tDate = document.getElementById('t-date');
+                tDate.parentNode.insertBefore(presTitle, tDate.nextSibling);
+            }
 
             if (tabName === 'sales') {
                 document.getElementById('tab-sales-btn').classList.add('active');
                 document.getElementById('panel-sales').classList.add('active');
+                
+                // Modo Venta
+                const cfgFooter = document.getElementById('cfg-footer');
+                tFooter.innerText = cfgFooter ? cfgFooter.value : '¡Gracias por tu compra!';
+                if (qrContainer) {
+                    qrContainer.style.display = 'flex';
+                    qrContainer.style.justifyContent = 'center';
+                }
+                presTitle.style.display = 'none';
+                updateUI(); // Carga la lista de ventas
+
+            } else if (tabName === 'stock') {
+                document.getElementById('tab-stock-btn').classList.add('active');
+                document.getElementById('panel-stock').classList.add('active');
+                updateStockUI();
+            
+                
             } else if (tabName === 'history') {
                 document.getElementById('tab-history-btn').classList.add('active');
                 document.getElementById('panel-history').classList.add('active');
-                renderHistoryTable(); // Renderiza la tabla cada vez que entramos a verla
-            } else {
+                renderHistoryTable();
+            } else if (tabName === 'settings') {
                 document.getElementById('tab-settings-btn').classList.add('active');
                 document.getElementById('panel-settings').classList.add('active');
+            } else if (tabName === 'budget') {
+                document.getElementById('tab-budget-btn').classList.add('active');
+                document.getElementById('panel-budget').classList.add('active');
+                
+                // Modo Presupuesto
+                tFooter.innerText = "Válido por 15 días.\nPrecios sujetos a modificación.";
+                if (qrContainer) qrContainer.style.display = 'none';
+                presTitle.style.display = 'block';
+                updateBudgetUI(); // Carga la lista del presupuesto
             }
         }
 
@@ -493,10 +543,151 @@
             // Usamos un bloque try-catch por si el historial se llega a llenar a futuro
             try {
                 localStorage.setItem('ticket_history', JSON.stringify(history));
+                if (!payload.es_presupuesto) { // No descontamos stock por presupuestos
+                    deductStockFromSale(payload.products);
+                }
             } catch (error) {
                 alert("Error de memoria: El historial está muy lleno. Por favor, andá a la pestaña Historial y vacialo.");
             }
         }
+
+
+
+        function updateBudgetUI() {
+            budgetTableBody.innerHTML = '';
+            ticketItemsContainer.innerHTML = ''; // Limpiamos la vista previa
+            
+            let total = 0;
+            const formatCurrency = (val) => val < 0 ? `-$${Math.abs(val).toFixed(2)}` : `$${val.toFixed(2)}`;
+
+            budgetItems.forEach((prod, index) => {
+                const subtotal = prod.qty * prod.price;
+                total += subtotal;
+
+                // 1. DIBUJAR EN LA TABLA
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="max-width: 300px; white-space: pre-wrap; word-break: break-word;">${prod.name}</td>
+                    <td>${prod.qty}</td>
+                    <td>${formatCurrency(prod.price)}</td>
+                    <td>${formatCurrency(subtotal)}</td>
+                    <td class="actions-cell">
+                        <button class="btn-danger" onclick="deleteBudgetItem(${index})">❌ Borrar</button>
+                    </td>
+                `;
+                budgetTableBody.appendChild(tr);
+
+                // 2. DIBUJAR EN EL TICKET (VISTA PREVIA)
+                const ticketItem = document.createElement('div');
+                ticketItem.className = 'ticket-item';
+                ticketItem.style.width = '100%';
+                ticketItem.style.marginBottom = '4px';
+
+                if (prod.qty > 1) {
+                    ticketItem.innerHTML = `
+                        <div style="display: flex; flex-direction: column; width: 100%;">
+                            <span>${prod.qty}x ${prod.name}</span>
+                            <div style="display: flex; justify-content: space-between; color: #555; font-size: 0.9em; padding-left: 15px;">
+                                <span>(${formatCurrency(prod.price)} c/u)</span>
+                                <span style="color: black; font-weight: bold;">${formatCurrency(subtotal)}</span>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    ticketItem.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; width: 100%; flex-wrap: wrap; gap: 2px;">
+                            <span style="flex: 1; min-width: 60%; word-break: break-word;">${prod.qty}x ${prod.name}</span>
+                            <span style="font-weight: normal; text-align: right; flex-shrink: 0;">${formatCurrency(subtotal)}</span>
+                        </div>
+                    `;
+                }
+                ticketItemsContainer.appendChild(ticketItem);
+            });
+
+            const formattedTotal = formatCurrency(total);
+            budgetTotalAmountText.textContent = formattedTotal;
+            ticketTotalText.textContent = formattedTotal;
+            
+            updateTicketDate();
+        }
+
+        window.printBudget = function() {
+            if (budgetItems.length === 0) {
+                alert("El presupuesto está vacío.");
+                return;
+            }
+
+            const totalBudget = budgetItems.reduce((acc, p) => acc + (p.qty * p.price), 0);
+            const storedSettings = JSON.parse(localStorage.getItem('ticket_settings')) || {};
+
+            const paperSize = document.querySelector('input[name="paper-size"]:checked')?.value || "58";
+            const targetDevice = document.getElementById('cfg-printer')?.value || "";
+
+            // Armamos el paquete de datos para Rust, alineado EXACTAMENTE con TicketInput
+            const ticketData = {
+                header: document.getElementById('cfg-header')?.value || "ESTADO PLAY",
+                footer: "", 
+                show_date: document.getElementById('cfg-show-date')?.checked ?? true,
+                print_qr: false, 
+                logo_image: customLogoBase64 || null, // Importante: usar null si no hay
+                qr_image: null, 
+                paper_size: paperSize,
+                target_device: targetDevice,
+                image_size: document.getElementById('cfg-image-size')?.value || "medio",
+                
+                products: budgetItems,
+                total: totalBudget,
+                
+                es_presupuesto: true // El interruptor para Rust
+            };
+
+            const { invoke } = window.__TAURI__.core;
+            
+            // Llamamos a la función con el nombre correcto de variable: esTarjetaPresentacion
+            invoke('imprimir_ticket', { 
+                ticket: ticketData, 
+                esTarjetaPresentacion: false 
+            })
+            .then(response => {
+                alert(response);
+            })
+            .catch(error => {
+                alert("Error: " + error);
+            });
+        }
+
+        // Escuchar el formulario de agregar
+        document.getElementById('budget-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const nameInput = document.getElementById('budget-name');
+            const qtyInput = document.getElementById('budget-qty');
+            const priceInput = document.getElementById('budget-price');
+
+            const name = nameInput.value.trim();
+            const qty = parseInt(qtyInput.value);
+            const price = parseFloat(priceInput.value);
+
+            if (!name || isNaN(qty) || isNaN(price)) return;
+
+            budgetItems.push({ name, qty, price });
+            
+            nameInput.value = '';
+            qtyInput.value = '1';
+            priceInput.value = '';
+            nameInput.focus();
+
+            updateBudgetUI();
+        });
+
+        window.deleteBudgetItem = function(index) {
+            budgetItems.splice(index, 1);
+            updateBudgetUI();
+        };
+
+        window.clearBudget = function() {
+            budgetItems = [];
+            updateBudgetUI();
+        };
 
         // Función rápida para limpiar todos los filtros a la vez
         window.clearFilters = function() {
@@ -796,6 +987,167 @@
                 updateUI(); // Llamamos a la función que redibuja la tabla y pone el total en $0.00
             }
         }
+
+        // ==========================================
+        // 📦 SISTEMA DE STOCK
+        // ==========================================
+        let stockItems = JSON.parse(localStorage.getItem('stock_items')) || [];
+
+        // Convertir foto a Base64
+        document.getElementById('stock-image')?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    document.getElementById('stock-image-base64').value = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Guardar o Editar Producto
+        document.getElementById('stock-form')?.addEventListener('submit', (e) => {
+            const editId = parseInt(document.getElementById('stock-edit-id').value);
+            const name = document.getElementById('stock-name').value.trim();
+            const price = parseFloat(document.getElementById('stock-price').value);
+            const qty = parseInt(document.getElementById('stock-qty').value);
+            const imgBase64 = document.getElementById('stock-image-base64').value;
+
+            if (editId === -1) {
+                // Nuevo producto
+                stockItems.push({ id: Date.now(), name, price, qty, image: imgBase64 });
+            } else {
+                // Editando existente
+                const index = stockItems.findIndex(i => i.id === editId);
+                if (index > -1) {
+                    stockItems[index].name = name;
+                    stockItems[index].price = price;
+                    stockItems[index].qty = qty;
+                    // Solo actualizamos la foto si subió una nueva
+                    if (imgBase64) stockItems[index].image = imgBase64; 
+                }
+            }
+
+            localStorage.setItem('stock_items', JSON.stringify(stockItems));
+            
+            // Resetear formulario
+            document.getElementById('stock-form').reset();
+            document.getElementById('stock-edit-id').value = "-1";
+            document.getElementById('stock-image-base64').value = "";
+            document.getElementById('stock-form-title').innerText = "Cargar Nuevo Producto";
+            
+            updateStockUI();
+        });
+
+        // Dibujar la tabla y calcular totales
+        function updateStockUI() {
+            const tbody = document.getElementById('stock-table-body');
+            const datalist = document.getElementById('stock-options');
+            if (!tbody) return;
+
+            tbody.innerHTML = '';
+            if(datalist) datalist.innerHTML = ''; // Limpiamos opciones del buscador de ventas
+
+            let totalValue = 0;
+
+            stockItems.forEach(item => {
+                totalValue += (item.price * item.qty);
+                
+                // Agregar al datalist para Ventas
+                if(datalist) {
+                    const option = document.createElement('option');
+                    option.value = item.name;
+                    datalist.appendChild(option);
+                }
+
+                // Agregar a la tabla
+                const tr = document.createElement('tr');
+                const imgTag = item.image ? `<img src="${item.image}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">` : '📦';
+                
+                tr.innerHTML = `
+                    <td style="text-align: center;">${imgTag}</td>
+                    <td><strong>${item.name}</strong></td>
+                    <td>$${item.price.toFixed(2)}</td>
+                    <td>
+                        <span style="padding: 4px 8px; border-radius: 4px; background-color: ${item.qty <= 2 ? '#fee2e2' : '#f1f5f9'}; color: ${item.qty <= 2 ? '#ef4444' : '#334155'}; font-weight: bold;">
+                            ${item.qty}
+                        </span>
+                    </td>
+                    <td class="actions-cell">
+                        <button class="btn-primary" onclick="editStockItem(${item.id})" style="background-color: #f59e0b; padding: 4px 8px;">✏️ Editar</button>
+                        <button class="btn-danger" onclick="deleteStockItem(${item.id})" style="padding: 4px 8px;">❌</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('stock-total-items').innerText = stockItems.length;
+            document.getElementById('stock-total-value').innerText = `$${totalValue.toFixed(2)}`;
+        }
+
+        window.editStockItem = function(id) {
+            const item = stockItems.find(i => i.id === id);
+            if (!item) return;
+            
+            document.getElementById('stock-edit-id').value = item.id;
+            document.getElementById('stock-name').value = item.name;
+            document.getElementById('stock-price').value = item.price;
+            document.getElementById('stock-qty').value = item.qty;
+            document.getElementById('stock-form-title').innerText = "Editando: " + item.name;
+            document.getElementById('stock-name').focus();
+        };
+
+        window.deleteStockItem = function(id) {
+            if (confirm("¿Eliminar este producto del inventario?")) {
+                stockItems = stockItems.filter(i => i.id !== id);
+                localStorage.setItem('stock_items', JSON.stringify(stockItems));
+                updateStockUI();
+            }
+        };
+
+        // ==========================================
+        // 🔗 CONEXIÓN INTELIGENTE: VENTAS <-> STOCK
+        // ==========================================
+
+        // Autocompletar precio al seleccionar nombre
+        document.getElementById('prod-name')?.addEventListener('input', (e) => {
+            const typedName = e.target.value.toLowerCase();
+            const foundItem = stockItems.find(i => i.name.toLowerCase() === typedName);
+            
+            // Si encuentra el producto, auto-llena el precio (pero el usuario puede borrarlo y cambiarlo)
+            if (foundItem) {
+                document.getElementById('prod-price').value = foundItem.price;
+            }
+        });
+
+        // Función para restar el stock al confirmar una venta
+        function deductStockFromSale(soldProducts) {
+            let stockChanged = false;
+            
+            soldProducts.forEach(sold => {
+                // Buscamos ignorando mayúsculas/minúsculas
+                const stockItem = stockItems.find(s => s.name.toLowerCase() === sold.name.toLowerCase());
+                if (stockItem) {
+                    stockItem.qty -= sold.qty; // Restamos la cantidad vendida
+                    stockChanged = true;
+                }
+            });
+
+            if (stockChanged) {
+                localStorage.setItem('stock_items', JSON.stringify(stockItems));
+                updateStockUI(); // Refrescamos la tabla y totales en segundo plano
+            }
+        }
+
+        // Cargar UI inicial
+        document.addEventListener("DOMContentLoaded", () => {
+            updateStockUI();
+        });
+
+
+        // ==========================================
+        // Inicializar la carga de configuraciones al abrir
+        // ==========================================
 
         // Inicializar la carga de configuraciones al abrir
         loadSettings();
