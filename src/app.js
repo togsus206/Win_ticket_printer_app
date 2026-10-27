@@ -1108,41 +1108,83 @@
         // ==========================================
         // 🔗 CONEXIÓN INTELIGENTE: VENTAS <-> STOCK
         // ==========================================
+        const suggestionsBox = document.getElementById('custom-suggestions');
 
-        // Autocompletar precio al seleccionar nombre
-        document.getElementById('prod-name')?.addEventListener('input', (e) => {
-            const typedName = e.target.value.toLowerCase();
-            const foundItem = stockItems.find(i => i.name.toLowerCase() === typedName);
+        // Mostrar sugerencias con foto al escribir
+        prodNameInput?.addEventListener('input', (e) => {
+            const typedText = e.target.value.toLowerCase().trim();
+            suggestionsBox.innerHTML = ''; // Limpiar cajón
             
-            // Si encuentra el producto, auto-llena el precio (pero el usuario puede borrarlo y cambiarlo)
-            if (foundItem) {
-                document.getElementById('prod-price').value = foundItem.price;
+            if (typedText.length === 0) {
+                suggestionsBox.style.display = 'none';
+                return;
+            }
+
+            // Buscar coincidencias en el stock
+            const matches = stockItems.filter(item => item.name.toLowerCase().includes(typedText));
+
+            if (matches.length === 0) {
+                suggestionsBox.style.display = 'none';
+                return;
+            }
+
+            // Dibujar cada opción
+            matches.forEach(item => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                
+                // Si no tiene foto, le ponemos un emoji de cajita por defecto
+                const imgSrc = item.image ? item.image : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>';
+
+                div.innerHTML = `
+                    <img src="${imgSrc}" class="suggestion-img">
+                    <div style="display: flex; flex-direction: column;">
+                        <span style="font-weight: bold; color: #334155; font-size: 0.9rem;">${item.name}</span>
+                        <span style="color: ${item.qty <= 2 ? '#ef4444' : '#64748b'}; font-size: 0.8rem;">
+                            Stock: ${item.qty} | $${item.price.toFixed(2)}
+                        </span>
+                    </div>
+                `;
+
+                // Al hacer clic, llenamos los datos y escondemos la lista
+                div.addEventListener('click', () => {
+                    prodNameInput.value = item.name;
+                    prodPriceInput.value = item.price;
+                    suggestionsBox.style.display = 'none';
+                    // Opcional: Mandar el cursor a la cantidad para que sea rapidísimo
+                    document.getElementById('prod-qty').focus();
+                });
+
+                suggestionsBox.appendChild(div);
+            });
+
+            suggestionsBox.style.display = 'block';
+        });
+
+        // Esconder la lista si hacés clic en cualquier otra parte de la pantalla
+        document.addEventListener('click', (e) => {
+            if (prodNameInput && suggestionsBox && !prodNameInput.contains(e.target) && !suggestionsBox.contains(e.target)) {
+                suggestionsBox.style.display = 'none';
             }
         });
 
-        // Función para restar el stock al confirmar una venta
+        // Función para restar el stock al confirmar una venta (Se mantiene intacta)
         function deductStockFromSale(soldProducts) {
             let stockChanged = false;
             
             soldProducts.forEach(sold => {
-                // Buscamos ignorando mayúsculas/minúsculas
                 const stockItem = stockItems.find(s => s.name.toLowerCase() === sold.name.toLowerCase());
                 if (stockItem) {
-                    stockItem.qty -= sold.qty; // Restamos la cantidad vendida
+                    stockItem.qty -= sold.qty; 
                     stockChanged = true;
                 }
             });
 
             if (stockChanged) {
                 localStorage.setItem('stock_items', JSON.stringify(stockItems));
-                updateStockUI(); // Refrescamos la tabla y totales en segundo plano
+                updateStockUI();
             }
         }
-
-        // Cargar UI inicial
-        document.addEventListener("DOMContentLoaded", () => {
-            updateStockUI();
-        });
 
 
         // ==========================================
