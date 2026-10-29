@@ -152,11 +152,16 @@
             <!-- PANEL DE STOCK -->
             <div id="panel-stock" class="view-panel">
                 
-                <!-- Tarjeta de Estadísticas -->
+                <!-- Tarjetas de Estadísticas -->
                 <div style="display: flex; gap: 20px; margin-bottom: 20px;">
                     <div class="card" style="flex: 1; background-color: #f8fafc; border-left: 4px solid #3b82f6;">
                         <h3 style="margin: 0; color: #64748b; font-size: 0.9rem;">Total de Productos Distintos</h3>
                         <p id="stock-total-items" style="margin: 5px 0 0 0; font-size: 1.5rem; font-weight: bold; color: #0f172a;">0</p>
+                    </div>
+                    <!-- NUEVA TARJETA: Cantidad Total de Unidades -->
+                    <div class="card" style="flex: 1; background-color: #f8fafc; border-left: 4px solid #8b5cf6;">
+                        <h3 style="margin: 0; color: #64748b; font-size: 0.9rem;">Cantidad Total (Unidades)</h3>
+                        <p id="stock-total-qty" style="margin: 5px 0 0 0; font-size: 1.5rem; font-weight: bold; color: #0f172a;">0</p>
                     </div>
                     <div class="card" style="flex: 1; background-color: #f8fafc; border-left: 4px solid #10b981;">
                         <h3 style="margin: 0; color: #64748b; font-size: 0.9rem;">Valor Total del Stock</h3>
@@ -169,7 +174,12 @@
                     <h2 id="stock-form-title">Cargar Nuevo Producto</h2>
                     <form id="stock-form" onsubmit="event.preventDefault();">
                         <input type="hidden" id="stock-edit-id" value="-1">
-                        <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 1.5fr auto; align-items: end; gap: 10px;">
+                        <!-- Ajustamos las columnas para hacerle lugar al código -->
+                        <div class="form-grid" style="grid-template-columns: 1fr 2fr 1fr 1fr 1.5fr auto; align-items: end; gap: 10px;">
+                            <div class="form-group">
+                                <label>Código (Opc.)</label>
+                                <input type="text" id="stock-code" placeholder="Ej: 1024">
+                            </div>
                             <div class="form-group">
                                 <label>Nombre del Producto</label>
                                 <input type="text" id="stock-name" required>
@@ -194,12 +204,20 @@
 
                 <!-- Lista de Stock -->
                 <div class="card" style="margin-top: 20px; flex: 1; display: flex; flex-direction: column;">
-                    <h2>Inventario Actual</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid var(--bg-app); padding-bottom: 8px;">
+                        <h2 style="border: none; margin: 0; padding: 0;">Inventario Actual</h2>
+                        <select id="sort-stock" onchange="updateStockUI()" style="padding: 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.9rem; color: #475569; background-color: white; cursor: pointer;">
+                                <option value="name">Ordenar por Nombre (A-Z)</option>
+                                <option value="code">Ordenar por Código (0-9)</option>
+                        </select>
+                        <input type="text" id="search-stock" placeholder="🔍 Buscar por nombre o código..." oninput="updateStockUI()" style="padding: 8px 12px; font-size: 0.9rem; width: 260px; border: 1px solid var(--border); border-radius: 4px;">
+                    </div>
                     <div class="table-container" style="flex: 1; overflow-y: auto;">
                         <table>
                             <thead>
                                 <tr>
                                     <th>Foto</th>
+                                    <th>Código</th>
                                     <th>Producto</th>
                                     <th>Precio</th>
                                     <th>Stock</th>
@@ -387,6 +405,12 @@
                 </button>
             </div>
         </div>
+    </div>
+
+    <!-- MODAL PARA VER FOTOS AMPLIADAS -->
+    <div id="image-modal" onclick="closeImageModal()" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); z-index: 9999; justify-content: center; align-items: center; cursor: zoom-out; backdrop-filter: blur(2px);">
+        <img id="modal-image" src="" style="max-width: 90%; max-height: 90%; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); object-fit: contain;">
+        <div style="position: absolute; top: 20px; right: 30px; color: white; font-size: 2rem; font-weight: bold; cursor: pointer;">&times;</div>
     </div>
 
     <script src="app.js"></script>

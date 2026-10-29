@@ -1008,6 +1008,7 @@
         // Guardar o Editar Producto
         document.getElementById('stock-form')?.addEventListener('submit', (e) => {
             const editId = parseInt(document.getElementById('stock-edit-id').value);
+            const code = document.getElementById('stock-code').value.trim(); // Capturamos el código
             const name = document.getElementById('stock-name').value.trim();
             const price = parseFloat(document.getElementById('stock-price').value);
             const qty = parseInt(document.getElementById('stock-qty').value);
@@ -1015,15 +1016,15 @@
 
             if (editId === -1) {
                 // Nuevo producto
-                stockItems.push({ id: Date.now(), name, price, qty, image: imgBase64 });
+                stockItems.push({ id: Date.now(), code, name, price, qty, image: imgBase64 });
             } else {
                 // Editando existente
                 const index = stockItems.findIndex(i => i.id === editId);
                 if (index > -1) {
+                    stockItems[index].code = code;
                     stockItems[index].name = name;
                     stockItems[index].price = price;
                     stockItems[index].qty = qty;
-                    // Solo actualizamos la foto si subió una nueva
                     if (imgBase64) stockItems[index].image = imgBase64; 
                 }
             }
@@ -1039,33 +1040,75 @@
             updateStockUI();
         });
 
-        // Dibujar la tabla y calcular totales
+        // Dibujar la tabla, calcular totales y ordenar
         function updateStockUI() {
             const tbody = document.getElementById('stock-table-body');
             const datalist = document.getElementById('stock-options');
             if (!tbody) return;
 
             tbody.innerHTML = '';
-            if(datalist) datalist.innerHTML = ''; // Limpiamos opciones del buscador de ventas
+            if(datalist) datalist.innerHTML = ''; 
 
             let totalValue = 0;
+            let totalQty = 0;
 
+            // 1. Calculamos los totales reales
             stockItems.forEach(item => {
                 totalValue += (item.price * item.qty);
+                totalQty += item.qty;
                 
-                // Agregar al datalist para Ventas
                 if(datalist) {
                     const option = document.createElement('option');
                     option.value = item.name;
                     datalist.appendChild(option);
                 }
+            });
 
-                // Agregar a la tabla
+            // 2. Filtramos para la tabla visual
+            const searchInput = document.getElementById('search-stock');
+            const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+            
+            let itemsToRender = searchTerm === '' 
+                ? [...stockItems] // Clonamos para no desordenar la base original
+                : stockItems.filter(item => {
+                    const matchName = item.name.toLowerCase().includes(searchTerm);
+                    const matchCode = item.code ? item.code.toLowerCase().includes(searchTerm) : false;
+                    return matchName || matchCode;
+                });
+
+            // 3. NUEVO: Aplicamos el ordenamiento elegido
+            const sortMode = document.getElementById('sort-stock')?.value || 'name';
+            
+            itemsToRender.sort((a, b) => {
+                if (sortMode === 'name') {
+                    return a.name.localeCompare(b.name);
+                } else if (sortMode === 'code') {
+                    const codeA = a.code || '';
+                    const codeB = b.code || '';
+                    // numeric: true ordena números lógicamente (ej: 2 antes que 10)
+                    return codeA.localeCompare(codeB, undefined, { numeric: true, sensitivity: 'base' });
+                }
+                return 0;
+            });
+
+            if (itemsToRender.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #64748b; padding: 20px;">No se encontraron productos con esa búsqueda.</td></tr>`;
+            }
+
+            // 4. Dibujamos los ítems
+            itemsToRender.forEach(item => {
                 const tr = document.createElement('tr');
-                const imgTag = item.image ? `<img src="${item.image}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">` : '📦';
+                
+                // Si hay foto, aplicamos la lupa
+                const imgTag = item.image 
+                    ? `<img src="${item.image}" onclick="openImageModal(${item.id})" title="Click para ampliar" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px; cursor: zoom-in; border: 1px solid #cbd5e1; transition: 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'">` 
+                    : '<span style="font-size: 1.5rem;">📦</span>';
+                    
+                const displayCode = item.code ? item.code : '-';
                 
                 tr.innerHTML = `
                     <td style="text-align: center;">${imgTag}</td>
+                    <td style="color: #64748b; font-size: 0.9rem;">${displayCode}</td>
                     <td><strong>${item.name}</strong></td>
                     <td>$${item.price.toFixed(2)}</td>
                     <td>
@@ -1081,7 +1124,9 @@
                 tbody.appendChild(tr);
             });
 
+            // 5. Actualizamos las métricas superiores
             document.getElementById('stock-total-items').innerText = stockItems.length;
+            document.getElementById('stock-total-qty').innerText = totalQty;
             document.getElementById('stock-total-value').innerText = `$${totalValue.toFixed(2)}`;
         }
 
@@ -1090,11 +1135,12 @@
             if (!item) return;
             
             document.getElementById('stock-edit-id').value = item.id;
+            document.getElementById('stock-code').value = item.code || ''; // Recupera el código si existe
             document.getElementById('stock-name').value = item.name;
             document.getElementById('stock-price').value = item.price;
             document.getElementById('stock-qty').value = item.qty;
             document.getElementById('stock-form-title').innerText = "Editando: " + item.name;
-            document.getElementById('stock-name').focus();
+            document.getElementById('stock-code').focus(); // Empezamos por el código al editar
         };
 
         window.deleteStockItem = function(id) {
@@ -1133,11 +1179,13 @@
                 const div = document.createElement('div');
                 div.className = 'suggestion-item';
                 
-                // Si no tiene foto, le ponemos un emoji de cajita por defecto
-                const imgSrc = item.image ? item.image : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="35" height="35" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>';
+                // NUEVO: Usamos el mismo emoji de cajita que en la tabla si no hay foto
+                const imgTag = item.image 
+                    ? `<img src="${item.image}" class="suggestion-img">` 
+                    : `<div class="suggestion-img" style="display: flex; align-items: center; justify-content: center; font-size: 1.4rem; background-color: #f1f5f9;">📦</div>`;
 
                 div.innerHTML = `
-                    <img src="${imgSrc}" class="suggestion-img">
+                    ${imgTag}
                     <div style="display: flex; flex-direction: column;">
                         <span style="font-weight: bold; color: #334155; font-size: 0.9rem;">${item.name}</span>
                         <span style="color: ${item.qty <= 2 ? '#ef4444' : '#64748b'}; font-size: 0.8rem;">
@@ -1151,7 +1199,6 @@
                     prodNameInput.value = item.name;
                     prodPriceInput.value = item.price;
                     suggestionsBox.style.display = 'none';
-                    // Opcional: Mandar el cursor a la cantidad para que sea rapidísimo
                     document.getElementById('prod-qty').focus();
                 });
 
@@ -1186,6 +1233,22 @@
             }
         }
 
+
+        // ==========================================
+        // 🔍 VISOR DE IMÁGENES AMPLIADAS
+        // ==========================================
+        window.openImageModal = function(id) {
+            const item = stockItems.find(i => i.id === id);
+            if (item && item.image) {
+                document.getElementById('modal-image').src = item.image;
+                document.getElementById('image-modal').style.display = 'flex';
+            }
+        };
+
+        window.closeImageModal = function() {
+            document.getElementById('image-modal').style.display = 'none';
+            document.getElementById('modal-image').src = ''; // Limpiamos la foto por las dudas
+        };
 
         // ==========================================
         // Inicializar la carga de configuraciones al abrir
